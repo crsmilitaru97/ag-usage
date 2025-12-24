@@ -1,0 +1,53 @@
+{
+  "name": "ag-usage",
+  "version": "1.0.0",
+  "displayName": "AG Usage",
+  "description": "Track usage of Antigravity AI models",
+  "author": "Cristian Militaru",
+  "publisher": "crsx",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/crsmilitaru97/ag-usage"
+  },
+  "license": "ISC",
+  "keywords": [
+    "antigravity",
+    "ai",
+    "usage",
+    "quota",
+    "monitor"
+  ],
+  "icon": "icon.png",
+  "engines": {
+    "vscode": "^1.104.0"
+  },
+  "categories": [
+    "AI",
+    "Visualization",
+    "Other"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "ag-usage.refresh",
+        "title": "Refresh AG Usage",
+        "icon": "$(refresh)"
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "package": "npx vsce package",
+    "publish:ovsx": "npx ovsx publish"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.104.0",
+    "@types/node": "25.0.3",
+    "typescript": "^5.9.3"
+  }
+}
