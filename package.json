@@ -1,6 +1,6 @@
 {
   "name": "ag-usage",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "displayName": "AG Usage",
   "description": "Track usage of Antigravity AI models",
   "author": "Cristian Militaru",
@@ -45,6 +45,25 @@
           "type": "number",
           "default": 60,
           "description": "Refresh interval in seconds. Set to 0 to disable auto-refresh."
+        },
+        "ag-usage.statusBarDisplay": {
+          "type": "string",
+          "default": "average",
+          "enum": [
+            "average",
+            "all",
+            "geminiPro",
+            "geminiFlash",
+            "claudeGpt"
+          ],
+          "enumDescriptions": [
+            "Show the average usage across all groups",
+            "Show all three groups side by side",
+            "Show only Gemini 3 Pro usage",
+            "Show only Gemini 3 Flash usage",
+            "Show only Claude/GPT usage"
+          ],
+          "description": "What to display in the status bar."
         }
       }
     }

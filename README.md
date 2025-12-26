@@ -7,21 +7,11 @@
 </p>
 
 <p align="center">
-  <a href="https://open-vsx.org/extension/crsx/ag-usage">
-    <img src="https://img.shields.io/open-vsx/v/crsx/ag-usage?logo=open-vsx&logoColor=white" alt="Open VSX Version">
-  </a>
-  <a href="https://open-vsx.org/extension/crsx/ag-usage">
-    <img src="https://img.shields.io/open-vsx/dt/crsx/ag-usage" alt="Open VSX Downloads">
-  </a>
-  <a href="https://github.com/crsmilitaru97/ag-usage">
-    <img src="https://img.shields.io/badge/GitHub-Repository-181717?logo=github&logoColor=white" alt="GitHub">
-  </a>
-  <a href="https://github.com/crsmilitaru97/ag-usage/stargazers">
-    <img src="https://img.shields.io/github/stars/crsmilitaru97/ag-usage" alt="GitHub Stars">
-  </a>
-  <a href="https://github.com/crsmilitaru97/ag-usage/blob/main/LICENSE">
-    <img src="https://img.shields.io/github/license/crsmilitaru97/ag-usage" alt="License">
-  </a>
+  <a href="https://open-vsx.org/extension/crsx/ag-usage"><img src="https://img.shields.io/open-vsx/v/crsx/ag-usage?logo=open-vsx&logoColor=white" alt="Open VSX Version"></a>
+  <a href="https://open-vsx.org/extension/crsx/ag-usage"><img src="https://img.shields.io/open-vsx/dt/crsx/ag-usage" alt="Open VSX Downloads"></a>
+  <a href="https://github.com/crsmilitaru97/ag-usage"><img src="https://img.shields.io/badge/GitHub-Repository-181717?logo=github&logoColor=white" alt="GitHub"></a>
+  <a href="https://github.com/crsmilitaru97/ag-usage/stargazers"><img src="https://img.shields.io/github/stars/crsmilitaru97/ag-usage" alt="GitHub Stars"></a>
+  <a href="https://github.com/crsmilitaru97/ag-usage/blob/main/LICENSE"><img src="https://img.shields.io/github/license/crsmilitaru97/ag-usage" alt="License"></a>
 </p>
 
 ---
@@ -45,7 +35,7 @@
 
 - **Cross-platform**: Fully compatible with **Windows**, **macOS**, and **Linux**.
 
-- **Lightweight**: Ultra‑compact (<30 KB), minimal performance impact using cached connection, and a clean, modern interface.
+- **Lightweight**: Ultra‑compact (<35 KB), minimal performance impact using cached connection, and a clean, modern interface.
 
 ## 📖 Usage
 
@@ -56,7 +46,14 @@
 
 ## 📝 Configuration
 
-- `ag-usage.refreshInterval`: Set the interval (in seconds) between automatic refreshes. Default is 60 seconds.
+- `ag-usage.refreshInterval`: Set the interval (in seconds) between automatic refreshes. Default is `60` seconds.
+
+- `ag-usage.statusBarDisplay`: Control what information is shown in the status bar. Options:
+  - `average` (default) - Shows the average usage across all groups
+  - `all` - Shows all three groups side by side (e.g., `Pro: 80% | Flash: 90% | C/G: 50%`)
+  - `geminiPro` - Shows only Gemini 3 Pro usage
+  - `geminiFlash` - Shows only Gemini 3 Flash usage
+  - `claudeGpt` - Shows only Claude/GPT usage
 
 ## ⚙️ Commands
 

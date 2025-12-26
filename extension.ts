@@ -34,10 +34,11 @@ export function activate(context: vscode.ExtensionContext) {
 	startAutoRefresh();
 
 	context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(e => {
-		if (e.affectsConfiguration('ag-usage.refreshInterval')) {
-			startAutoRefresh();
-		}
+		if (e.affectsConfiguration('ag-usage.refreshInterval')) startAutoRefresh();
+		if (e.affectsConfiguration('ag-usage.statusBarDisplay')) refresh(false);
 	}));
+
+	context.subscriptions.push(vscode.window.onDidChangeActiveColorTheme(() => refresh(false)));
 }
 
 export function deactivate() { stopAutoRefresh(); }
@@ -177,6 +178,10 @@ function renderStats(data: StatsData) {
 	const colWidth = 120, colPadding = 10, barWidth = 100, barHeight = 20, height = 110;
 	const totalWidth = categories.length * colWidth + (categories.length - 1) * colPadding;
 
+	const isLightTheme = vscode.window.activeColorTheme.kind === vscode.ColorThemeKind.Light || vscode.window.activeColorTheme.kind === vscode.ColorThemeKind.HighContrastLight;
+	const textColor = isLightTheme ? '#333' : '#ccc';
+	const barBgColor = isLightTheme ? '#ddd' : '#555';
+
 	let svgContent = `<svg width="${totalWidth}" height="${height}" xmlns="http://www.w3.org/2000/svg">`;
 	categories.forEach((category, index) => {
 		const xPosition = index * (colWidth + colPadding), centerX = xPosition + colWidth / 2;
@@ -195,10 +200,10 @@ function renderStats(data: StatsData) {
 			}
 		}
 		const barColor = percentage >= 70 ? '#449d44' : percentage >= 30 ? '#ec971f' : '#c9302c';
-		const timeColor = remainingTime && diffMs < 3600000 ? '#449d44' : '#ccc';
+		const timeColor = remainingTime && diffMs < 3600000 ? '#449d44' : textColor;
 		svgContent += `
-		<text x="${centerX}" y="21" fill="#ccc" text-anchor="middle" font-family="sans-serif" font-size="12" font-weight="bold">${category}</text>
-		<rect x="${xPosition + 10}" y="30" rx="4" width="${barWidth}" height="${barHeight}" fill="#555"/>
+		<text x="${centerX}" y="21" fill="${textColor}" text-anchor="middle" font-family="sans-serif" font-size="12" font-weight="bold">${category}</text>
+		<rect x="${xPosition + 10}" y="30" rx="4" width="${barWidth}" height="${barHeight}" fill="${barBgColor}"/>
 		<rect x="${xPosition + 10}" y="30" rx="4" width="${(group.quota * barWidth).toFixed(1)}" height="${barHeight}" fill="${barColor}"/>
 		<text x="${centerX}" y="45" fill="#010101" fill-opacity=".3" text-anchor="middle" font-family="sans-serif" font-size="12" font-weight="bold">${percentage}%</text>
 		<text x="${centerX}" y="44" fill="#fff" text-anchor="middle" font-family="sans-serif" font-size="12" font-weight="bold">${percentage}%</text>`;
@@ -213,7 +218,30 @@ function renderStats(data: StatsData) {
 	md.appendMarkdown(`<img src="data:image/svg+xml;base64,${Buffer.from(svgContent).toString('base64')}"/>`);
 	md.isTrusted = true;
 	md.supportHtml = true;
-	const averageQuota = categories.length > 0 ? totalQuota / categories.length : 0;
-	statusBarItem.text = `$(rocket) ${Math.round(averageQuota * 100)}%`;
+	statusBarItem.text = formatStatusBarText(groups, categories, totalQuota);
 	statusBarItem.tooltip = md;
+}
+
+type StatusBarDisplayMode = 'average' | 'all' | 'geminiPro' | 'geminiFlash' | 'claudeGpt';
+const categoryMap: Record<string, string> = { geminiPro: 'Gemini 3 Pro', geminiFlash: 'Gemini 3 Flash', claudeGpt: 'Claude/GPT' };
+const shortNames: Record<string, string> = { 'Gemini 3 Pro': 'Pro', 'Gemini 3 Flash': 'Flash', 'Claude/GPT': 'C/G' };
+
+function formatStatusBarText(groups: Record<string, GroupData>, categories: string[], totalQuota: number): string {
+	const config = vscode.workspace.getConfiguration('ag-usage');
+	const displayMode = config.get<StatusBarDisplayMode>('statusBarDisplay', 'average');
+
+	if (displayMode === 'all') {
+		const parts = categories.map(cat => `${shortNames[cat]}: ${Math.round(groups[cat].quota * 100)}%`);
+		return `$(rocket) ${parts.join(' | ')}`;
+	}
+
+	if (displayMode !== 'average') {
+		const category = categoryMap[displayMode];
+		if (category && groups[category]) {
+			return `$(rocket) ${shortNames[category]}: ${Math.round(groups[category].quota * 100)}%`;
+		}
+	}
+
+	const averageQuota = categories.length > 0 ? totalQuota / categories.length : 0;
+	return `$(rocket) ${Math.round(averageQuota * 100)}%`;
 }
