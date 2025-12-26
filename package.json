@@ -1,6 +1,6 @@
 {
   "name": "ag-usage",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "displayName": "AG Usage",
   "description": "Track usage of Antigravity AI models",
   "author": "Cristian Militaru",
@@ -37,7 +37,17 @@
         "title": "Refresh AG Usage",
         "icon": "$(refresh)"
       }
-    ]
+    ],
+    "configuration": {
+      "title": "AG Usage",
+      "properties": {
+        "ag-usage.refreshInterval": {
+          "type": "number",
+          "default": 60,
+          "description": "Refresh interval in seconds. Set to 0 to disable auto-refresh."
+        }
+      }
+    }
   },
   "scripts": {
     "vscode:prepublish": "npm run compile",

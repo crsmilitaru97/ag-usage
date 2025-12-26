@@ -5,16 +5,12 @@ import { promisify } from 'util';
 import * as vscode from 'vscode';
 
 const execAsync = promisify(exec);
-const INITIAL_DELAY_MS = 2500;
-const REFRESH_INTERVAL_MS = 60000;
-const REQUEST_TIMEOUT_MS = 2000;
-const PORT_DISCOVERY_TIMEOUT_MS = 5000;
 
 interface ProcessInfo { pid: number; cmd: string; }
 interface WindowsProcessData { ProcessId: number; CommandLine: string; }
-interface QuotaInfo { remaining: number; remainingFraction: number; resetTime?: string; }
+interface QuotaInfo { remainingFraction: number; resetTime?: string; }
 interface ModelConfig { label: string; quotaInfo?: QuotaInfo; }
-interface GroupData { total: number; count: number; resetTime: Date | null; }
+interface GroupData { quota: number; resetTime: Date | null; }
 interface CachedConnection { port: number; token: string; }
 
 export interface ServerUserStatusResponse {
@@ -24,7 +20,7 @@ export interface ServerUserStatusResponse {
 }
 
 let statusBarItem: vscode.StatusBarItem;
-let refreshInterval: NodeJS.Timeout;
+let refreshInterval: NodeJS.Timeout | undefined;
 let cachedConnection: CachedConnection | null = null;
 
 export function activate(context: vscode.ExtensionContext) {
@@ -33,11 +29,33 @@ export function activate(context: vscode.ExtensionContext) {
 	statusBarItem.text = '$(rocket) AG Usage';
 	statusBarItem.show();
 	context.subscriptions.push(statusBarItem, vscode.commands.registerCommand('ag-usage.refresh', () => refresh()));
-	setTimeout(refresh, INITIAL_DELAY_MS);
-	refreshInterval = setInterval(() => refresh(false), REFRESH_INTERVAL_MS);
+
+	setTimeout(refresh, 1500);
+	startAutoRefresh();
+
+	context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(e => {
+		if (e.affectsConfiguration('ag-usage.refreshInterval')) {
+			startAutoRefresh();
+		}
+	}));
 }
 
-export function deactivate() { clearInterval(refreshInterval); }
+export function deactivate() { stopAutoRefresh(); }
+
+function startAutoRefresh() {
+	stopAutoRefresh();
+	const intervalSeconds = vscode.workspace.getConfiguration('ag-usage').get<number>('refreshInterval', 60);
+	if (intervalSeconds > 0) {
+		refreshInterval = setInterval(() => refresh(false), intervalSeconds * 1000);
+	}
+}
+
+function stopAutoRefresh() {
+	if (refreshInterval) {
+		clearInterval(refreshInterval);
+		refreshInterval = undefined;
+	}
+}
 
 async function refresh(showRefreshing?: boolean) {
 	if (showRefreshing !== false) statusBarItem.text = cachedConnection ? '$(sync~spin) Refreshing...' : '$(sync~spin) Connecting...';
@@ -49,8 +67,9 @@ async function refresh(showRefreshing?: boolean) {
 				[statsData] = await Promise.all([fetchStats(cachedConnection.port, cachedConnection.token), minDelay]);
 				renderStats(statsData);
 				return;
-			} catch { cachedConnection = null; }
+			} catch (_) { cachedConnection = null; }
 		}
+
 		const processInfo = await findAntigravityProcess();
 		const csrfToken = processInfo.cmd.match(/--csrf_token[=\s]+([a-f0-9\-]+)/i)?.[1];
 		if (!csrfToken) throw new Error('Token not found');
@@ -58,7 +77,7 @@ async function refresh(showRefreshing?: boolean) {
 		cachedConnection = { port, token: csrfToken };
 		[statsData] = await Promise.all([fetchStats(port, csrfToken), minDelay]);
 		renderStats(statsData);
-	} catch {
+	} catch (_) {
 		await minDelay;
 		statusBarItem.text = '$(error) AG Usage';
 		statusBarItem.tooltip = 'Process not found or connection failed';
@@ -97,18 +116,13 @@ async function findListeningPorts(pid: number): Promise<number[]> {
 
 async function findValidPort(ports: number[], token: string): Promise<number> {
 	return Promise.race([
-		(async () => {
-			for (const port of ports) {
-				try {
-					await makeRequest(port, token, '/exa.language_server_pb.LanguageServerService/GetUnleashData', {
-						context: { properties: { ide: 'antigravity', ideVersion: '1.0.0' } }
-					});
-					return port;
-				} catch { continue; }
-			}
-			throw new Error('No valid port found');
-		})(),
-		new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Timeout')), PORT_DISCOVERY_TIMEOUT_MS))
+		Promise.any(ports.map(async port => {
+			await makeRequest(port, token, '/exa.language_server_pb.LanguageServerService/GetUnleashData', {
+				context: { properties: { ide: 'antigravity', ideVersion: '1.0.0' } }
+			});
+			return port;
+		})),
+		new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Timeout')), 5000))
 	]);
 }
 
@@ -117,7 +131,7 @@ function makeRequest<T>(port: number, token: string, path: string, body: object)
 		const request = https.request({
 			hostname: '127.0.0.1', port, path, method: 'POST',
 			headers: { 'Content-Type': 'application/json', 'X-Codeium-Csrf-Token': token, 'Connect-Protocol-Version': '1' },
-			rejectUnauthorized: false, timeout: REQUEST_TIMEOUT_MS
+			rejectUnauthorized: false, timeout: 2500
 		}, response => {
 			let responseData = '';
 			response.on('data', chunk => responseData += chunk);
@@ -144,9 +158,9 @@ async function fetchStats(port: number, token: string): Promise<StatsData> {
 	models.forEach(model => {
 		const lowerLabel = model.label.toLowerCase();
 		const category = lowerLabel.includes('flash') ? 'Gemini 3 Flash' : lowerLabel.includes('gemini') ? 'Gemini 3 Pro' : 'Claude/GPT';
-		if (!groups[category]) groups[category] = { total: 0, count: 0, resetTime: null };
-		groups[category].total += model.quotaInfo?.remainingFraction || 0;
-		groups[category].count++;
+		if (!groups[category]) groups[category] = { quota: 1, resetTime: null };
+		const modelQuota = model.quotaInfo?.remainingFraction ?? 0;
+		if (modelQuota < groups[category].quota) groups[category].quota = modelQuota;
 		if (model.quotaInfo?.resetTime) {
 			const resetDate = new Date(model.quotaInfo.resetTime);
 			if (!groups[category].resetTime || resetDate < groups[category].resetTime) groups[category].resetTime = resetDate;
@@ -158,44 +172,48 @@ async function fetchStats(port: number, token: string): Promise<StatsData> {
 
 function renderStats(data: StatsData) {
 	const { groups } = data;
-	let totalAvg = 0, totalCount = 0;
+	let totalQuota = 0;
 	const categories = ['Gemini 3 Pro', 'Gemini 3 Flash', 'Claude/GPT'].filter(category => groups[category]);
-	const colWidth = 120, colPadding = 10, barWidth = 100, barHeight = 20, height = 115;
+	const colWidth = 120, colPadding = 10, barWidth = 100, barHeight = 20, height = 110;
 	const totalWidth = categories.length * colWidth + (categories.length - 1) * colPadding;
 
 	let svgContent = `<svg width="${totalWidth}" height="${height}" xmlns="http://www.w3.org/2000/svg">`;
 	categories.forEach((category, index) => {
 		const xPosition = index * (colWidth + colPadding), centerX = xPosition + colWidth / 2;
-		const group = groups[category], average = group.total / group.count, percentage = Math.round(average * 100);
-		let remainingTime: { hours: number; minutes: number; display: string } | null = null;
-		if (group.resetTime) {
-			const diffMs = group.resetTime.getTime() - Date.now();
-			if (diffMs <= 0) remainingTime = { hours: 0, minutes: 0, display: 'Soon' };
+		const group = groups[category], percentage = Math.round(group.quota * 100);
+		totalQuota += group.quota;
+		let remainingTime: string | null = null;
+		let diffMs = 0;
+		if (group.quota < 1 && group.resetTime) {
+			diffMs = group.resetTime.getTime() - Date.now();
+			if (diffMs <= 0) remainingTime = 'Soon';
 			else {
 				const days = Math.floor(diffMs / 86400000);
 				const hours = Math.floor((diffMs % 86400000) / 3600000);
 				const minutes = Math.floor((diffMs % 3600000) / 60000);
-				const display = days > 0 ? `${days}d ${hours}h` : hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
-				remainingTime = { hours, minutes, display };
+				remainingTime = days > 0 ? `${days}d ${hours}h` : hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
 			}
 		}
 		const barColor = percentage >= 70 ? '#449d44' : percentage >= 30 ? '#ec971f' : '#c9302c';
-		const timeColor = remainingTime && remainingTime.hours < 1 ? '#449d44' : '#ccc';
-		totalAvg += average; totalCount++;
+		const timeColor = remainingTime && diffMs < 3600000 ? '#449d44' : '#ccc';
 		svgContent += `
 		<text x="${centerX}" y="21" fill="#ccc" text-anchor="middle" font-family="sans-serif" font-size="12" font-weight="bold">${category}</text>
 		<rect x="${xPosition + 10}" y="30" rx="4" width="${barWidth}" height="${barHeight}" fill="#555"/>
-		<rect x="${xPosition + 10}" y="30" rx="4" width="${(average * barWidth).toFixed(1)}" height="${barHeight}" fill="${barColor}"/>
+		<rect x="${xPosition + 10}" y="30" rx="4" width="${(group.quota * barWidth).toFixed(1)}" height="${barHeight}" fill="${barColor}"/>
 		<text x="${centerX}" y="45" fill="#010101" fill-opacity=".3" text-anchor="middle" font-family="sans-serif" font-size="12" font-weight="bold">${percentage}%</text>
-		<text x="${centerX}" y="44" fill="#fff" text-anchor="middle" font-family="sans-serif" font-size="12" font-weight="bold">${percentage}%</text>
-		<text x="${centerX + 2}" y="77" fill="${timeColor}" text-anchor="middle" font-family="sans-serif" font-size="13" font-weight="bold">${remainingTime?.display || '--'} ⏳</text>`;
+		<text x="${centerX}" y="44" fill="#fff" text-anchor="middle" font-family="sans-serif" font-size="12" font-weight="bold">${percentage}%</text>`;
+
+		if (remainingTime) {
+			svgContent += `<text x="${centerX + 2}" y="77" fill="${timeColor}" text-anchor="middle" font-family="sans-serif" font-size="13" font-weight="bold">${remainingTime} ⏳</text>`;
+		}
 	});
-	svgContent += `<text x="${totalWidth / 2}" y="${height - 4}" fill="#666" text-anchor="middle" font-family="sans-serif" font-size="10">Click to refresh</text></svg>`;
+	svgContent += `<text x="${totalWidth / 2}" y="${height - 4}" fill="#666" text-anchor="middle" font-family="sans-serif" font-size="11">Click to refresh. Models are grouped according to how quota is calculated.</text></svg>`;
 
 	const md = new vscode.MarkdownString();
 	md.appendMarkdown(`<img src="data:image/svg+xml;base64,${Buffer.from(svgContent).toString('base64')}"/>`);
 	md.isTrusted = true;
 	md.supportHtml = true;
-	statusBarItem.text = `$(rocket) ${totalCount > 0 ? Math.round((totalAvg / totalCount) * 100) : 0}%`;
+	const averageQuota = categories.length > 0 ? totalQuota / categories.length : 0;
+	statusBarItem.text = `$(rocket) ${Math.round(averageQuota * 100)}%`;
 	statusBarItem.tooltip = md;
 }
