@@ -1,6 +1,7 @@
 import { exec } from 'child_process';
 import * as https from 'https';
 import * as os from 'os';
+import * as fs from 'fs';
 import { promisify } from 'util';
 import * as vscode from 'vscode';
 
@@ -98,9 +99,30 @@ async function findAntigravityProcess(): Promise<ProcessInfo> {
 			return { pid: parseInt(parts[1], 10), cmd: parts.slice(10).join(' ') };
 		});
 	}
-	const antigravityProcess = processes.find(p => p.cmd.includes('antigravity')) || processes.find(p => p.cmd.includes('--csrf_token'));
+
+	const currentUserUid = os.platform() === 'linux' ? os.userInfo().uid : -1;
+	const currentHome = os.homedir();
+
+	const candidateProcesses = processes.filter(p => os.platform() !== 'linux' || isValidProcess(p.pid, currentUserUid, currentHome));
+
+	const antigravityProcess = candidateProcesses.find(p => p.cmd.includes('antigravity')) || candidateProcesses.find(p => p.cmd.includes('--csrf_token'));
 	if (!antigravityProcess) throw new Error('Process not found');
 	return antigravityProcess;
+}
+
+function isValidProcess(pid: number, expectedUid: number, expectedHome: string): boolean {
+	try {
+		return fs.statSync(`/proc/${pid}`).uid === expectedUid &&
+			getEnvValue(fs.readFileSync(`/proc/${pid}/environ`), 'HOME') === expectedHome;
+	} catch {
+		return false;
+	}
+}
+
+function getEnvValue(environ: Buffer, keyToFind: string): string | undefined {
+	return environ.toString().split('\0')
+		.find(line => line.startsWith(keyToFind + '='))
+		?.substring(keyToFind.length + 1);
 }
 
 async function findListeningPorts(pid: number): Promise<number[]> {
