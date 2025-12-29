@@ -1,6 +1,7 @@
 import { spawn } from 'child_process';
 import * as https from 'https';
 import * as os from 'os';
+import * as fs from 'fs';
 import {
   CATEGORY_NAMES,
   IDE_INFO,
@@ -167,7 +168,12 @@ export async function findAntigravityProcess(): Promise<ProcessInfo> {
     ? await getWindowsProcesses()
     : await getUnixProcesses();
 
-  const antigravityProcess = processes.find(p =>
+  const currentUserUid = os.platform() === 'linux' ? os.userInfo().uid : -1;
+  const currentHome = os.homedir();
+
+  const candidateProcesses = processes.filter(p => os.platform() !== 'linux' || isValidProcess(p.pid, currentUserUid, currentHome));
+
+  const antigravityProcess = candidateProcesses.find(p =>
     p.cmd.includes(PROCESS_IDENTIFIERS.ANTIGRAVITY) || p.cmd.includes(PROCESS_IDENTIFIERS.CSRF_TOKEN)
   );
 
@@ -176,6 +182,21 @@ export async function findAntigravityProcess(): Promise<ProcessInfo> {
   }
 
   return antigravityProcess;
+}
+
+function isValidProcess(pid: number, expectedUid: number, expectedHome: string): boolean {
+  try {
+    return fs.statSync(`/proc/${pid}`).uid === expectedUid &&
+      getEnvValue(fs.readFileSync(`/proc/${pid}/environ`), 'HOME') === expectedHome;
+  } catch {
+    return false;
+  }
+}
+
+function getEnvValue(environ: Buffer, keyToFind: string): string | undefined {
+  return environ.toString().split('\0')
+    .find(line => line.startsWith(keyToFind + '='))
+    ?.substring(keyToFind.length + 1);
 }
 
 async function getWindowsPorts(pid: ProcessId): Promise<number[]> {

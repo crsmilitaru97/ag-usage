@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.3.1] - 2025-12-29
+
+- Fix: Added process ownership and $HOME validation to ensure correct quota display in multi-user environments (thanks to @costis-t)
+
 ## [1.3.0] - 2025-12-29
 
 - Added Open Settings button in the status bar item tooltip
