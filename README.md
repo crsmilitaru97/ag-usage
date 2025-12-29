@@ -35,8 +35,6 @@
 
 - **Cross-platform**: Fully compatible with **Windows**, **macOS**, and **Linux**.
 
-- **Lightweight**: Ultra‑compact (<35 KB), minimal performance impact using cached connection, and a clean, modern interface.
-
 ## 📖 Usage
 
 1. **Install** the extension.
@@ -58,6 +56,10 @@
 ## ⚙️ Commands
 
 - `ag-usage.refresh`: Manually triggers a scan for the Antigravity process and updates usage statistics.
+
+## 📝 Notes
+
+- Currently, the local Antigravity service has a maximum inaccuracy of 5 minutes for the reset time. As a result, the "Soon ⏳" indicator may appear during this window.
 
 ## 💡 Inspiration
 

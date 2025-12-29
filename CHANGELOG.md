@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.0] - 2025-12-29
+
+- Added Open Settings button in the status bar item tooltip
+- Refactored code to use classes for better maintainability and stability
+- Fixed some connection issues
+- Added extension logging (check `Output` > `AG Usage`) for debugging purposes
+
 ## [1.2.0] - 2025-12-27
 
 - Fix: Tooltip text was hard to read on light themes

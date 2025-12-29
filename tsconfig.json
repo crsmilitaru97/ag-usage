@@ -6,6 +6,12 @@
 			"ES2022"
 		],
 		"sourceMap": false,
-		"strict": true
-	}
+		"strict": true,
+		"skipLibCheck": true,
+		"rootDir": "./src",
+		"outDir": "./out"
+	},
+	"include": [
+		"src/**/*"
+	]
 }

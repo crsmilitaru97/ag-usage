@@ -1,4 +1,6 @@
+out
 node_modules
-package-lock.json
-extension.js
+.vscode-test
 *.vsix
+.DS_Store
+Thumbs.db
