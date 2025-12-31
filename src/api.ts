@@ -250,44 +250,82 @@ function parseNetstatOutput(stdout: string, pid: ProcessId): number[] {
 
 async function getUnixPorts(pid: ProcessId): Promise<number[]> {
   const platform = os.platform();
-  let stdout: string;
-
-  try {
-    if (platform === 'darwin') {
-      stdout = await executeCommand('lsof', ['-iTCP', '-sTCP:LISTEN', '-n', '-P', '-p', String(pid)]);
-    } else {
-      stdout = await executeCommand('ss', ['-tlnp']);
-    }
-  } catch (error) {
-    throw new Error(`Failed to query Unix ports: ${error instanceof Error ? error.message : String(error)}`);
-  }
-
-  const ports: number[] = [];
 
   if (platform === 'darwin') {
-    const regex = /:(\d+)\s+\(LISTEN\)/g;
-    let match;
-    while ((match = regex.exec(stdout)) !== null) {
-      const port = parseInt(match[1], 10);
+    try {
+      const stdout = await executeCommand('lsof', ['-iTCP', '-sTCP:LISTEN', '-n', '-P', '-p', String(pid)]);
+      return parseUnixLsofOutput(stdout);
+    } catch (error) {
+      throw new Error(`Failed to query Unix ports calling lsof: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+
+  const queries = [
+    { type: 'ss', cmd: 'ss', args: ['-tlnp'] },
+    { type: 'lsof', cmd: 'lsof', args: ['-iTCP', '-sTCP:LISTEN', '-n', '-P', '-p', String(pid)] },
+    { type: 'netstat', cmd: 'netstat', args: ['-tlnp'] }
+  ];
+
+  const errors: string[] = [];
+
+  for (const { type, cmd, args } of queries) {
+    try {
+      const stdout = await executeCommand(cmd, args);
+      if (type === 'ss') return parseUnixSsOutput(stdout, pid);
+      if (type === 'lsof') return parseUnixLsofOutput(stdout);
+      if (type === 'netstat') return parseUnixNetstatOutput(stdout, pid);
+    } catch (error) {
+      errors.push(`${cmd}: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+
+  throw new Error(`Failed to query Unix ports. Attempts: ${errors.join('; ')}`);
+}
+
+function parseUnixLsofOutput(stdout: string): number[] {
+  const ports: number[] = [];
+  const regex = /:(\d+)\s+\(LISTEN\)/g;
+  let match;
+  while ((match = regex.exec(stdout)) !== null) {
+    const port = parseInt(match[1], 10);
+    if (validatePort(port)) {
+      ports.push(port);
+    }
+  }
+  return ports;
+}
+
+function parseUnixSsOutput(stdout: string, pid: number): number[] {
+  const ports: number[] = [];
+  const lines = stdout.split('\n');
+  const pidPattern = new RegExp(`pid=${pid}\\b`);
+  for (const line of lines) {
+    if (!pidPattern.test(line)) { continue; }
+    const portMatch = line.match(/:(\d+)\s/);
+    if (portMatch) {
+      const port = parseInt(portMatch[1], 10);
       if (validatePort(port)) {
         ports.push(port);
       }
     }
-  } else {
-    const lines = stdout.split('\n');
-    const pidPattern = new RegExp(`pid=${pid}\\b`);
-    for (const line of lines) {
-      if (!pidPattern.test(line)) { continue; }
-      const portMatch = line.match(/:(\d+)\s/);
-      if (portMatch) {
-        const port = parseInt(portMatch[1], 10);
-        if (validatePort(port)) {
-          ports.push(port);
-        }
+  }
+  return ports;
+}
+
+function parseUnixNetstatOutput(stdout: string, pid: number): number[] {
+  const ports: number[] = [];
+  const lines = stdout.split('\n');
+  const pidPattern = new RegExp(`\\b${pid}/`);
+  for (const line of lines) {
+    if (!pidPattern.test(line)) { continue; }
+    const portMatch = line.match(/:(\d+)\s/);
+    if (portMatch) {
+      const port = parseInt(portMatch[1], 10);
+      if (validatePort(port)) {
+        ports.push(port);
       }
     }
   }
-
   return ports;
 }
 

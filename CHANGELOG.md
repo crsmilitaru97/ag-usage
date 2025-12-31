@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.3.2] - 2025-12-31
+
+- Fix: Resolved "spawn ss ENOENT" error on Linux systems missing the `ss` command by adding proper fallbacks to `lsof` and `netstat`
+
 ## [1.3.1] - 2025-12-29
 
 - Fix: Added process ownership and $HOME validation to ensure correct quota display in multi-user environments (thanks to @costis-t)
