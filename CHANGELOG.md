@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.4.0] - 2026-01-06
+
+- Redesigned tooltip with more detailed cards
+- Added session usage tracking with optional per-window isolation (`trackSessionUsage`, `perWindowSession`, `showSessionUsageInStatusBar`)
+- Added configurable reset time display with 12h/24h format support (`resetTimeDisplay`, `absoluteTimeFormat`)
+- Added quota notifications for full and low thresholds (`notifyOnFullQuota`, `lowQuotaNotificationThreshold`)
+- Optimized bundling with `esbuild` and general stability improvements
+
 ## [1.3.2] - 2025-12-31
 
 - Fix: Resolved "spawn ss ENOENT" error on Linux systems missing the `ss` command by adding proper fallbacks to `lsof` and `netstat`

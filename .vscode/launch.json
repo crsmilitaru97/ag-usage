@@ -12,6 +12,21 @@
 				"${workspaceFolder}/**/*.js"
 			],
 			"preLaunchTask": "npm: compile"
+		},
+		{
+			"name": "Run Extension (Mock Data)",
+			"type": "extensionHost",
+			"request": "launch",
+			"args": [
+				"--extensionDevelopmentPath=${workspaceFolder}"
+			],
+			"outFiles": [
+				"${workspaceFolder}/**/*.js"
+			],
+			"preLaunchTask": "npm: compile",
+			"env": {
+				"AG_USAGE_MOCK_DATA": "true"
+			}
 		}
 	]
 }

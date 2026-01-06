@@ -13,6 +13,13 @@ export interface UsageStatistics {
   groups: Record<string, QuotaGroup>;
 }
 
+export interface SessionQuotaTracker {
+  sessionStartTime: number;
+  cumulativeConsumed: Record<string, number>;
+  focusBaseline: Record<string, number> | null;
+  lastQuota: Record<string, number>;
+}
+
 export type ProcessId = number;
 
 export interface ProcessInfo {
@@ -21,6 +28,10 @@ export interface ProcessInfo {
 }
 
 export type StatusBarDisplayMode = 'average' | 'all' | 'geminiPro' | 'geminiFlash' | 'claudeGpt';
+
+export type ResetTimeDisplayMode = 'relative' | 'absolute' | 'both';
+
+export type AbsoluteTimeFormat = '24h' | '12h';
 
 export interface QuotaInfo {
   remainingFraction?: number;

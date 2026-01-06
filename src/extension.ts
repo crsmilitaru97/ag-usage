@@ -1,9 +1,11 @@
 import * as vscode from 'vscode';
-import { fetchStats, findAntigravityProcess, findListeningPorts, findValidPort } from './api';
+import { extractCsrfToken, fetchStats, findAntigravityProcess, findListeningPorts, findValidPort } from './api';
 import {
 	CACHE_TTL_MS,
+	CATEGORY_ORDER,
 	CONFIG_NAMESPACE,
 	DEFAULT_REFRESH_INTERVAL,
+	EXTENSION_TITLE,
 	FAILED_REFRESH_DELAY_MS,
 	INITIAL_DELAY_MS,
 	MAX_FAILED_REFRESH_DELAY_MS,
@@ -11,13 +13,29 @@ import {
 	MS_PER_SECOND,
 	REFRESH_COMMAND,
 	SETTINGS_COMMAND,
-	STATUS_BAR_PRIORITY
+	STATUS_BAR_PRIORITY,
+	USE_MOCK_DATA
 } from './constants';
 import { createErrorTooltip } from './formatter';
 import { renderStats } from './renderer';
-import { CachedConnection, UsageStatistics } from './types';
+import { CachedConnection, SessionQuotaTracker, UsageStatistics } from './types';
+import { getErrorMessage } from './utils';
 
-class ExtensionState {
+async function loadMockUsageStatistics(): Promise<UsageStatistics> {
+	const testDataModule = await import('../dev/testData.json', { with: { type: 'json' } });
+	const testData = testDataModule.default;
+	const now = Date.now();
+	const groups: Record<string, { quota: number; resetTime: number | null }> = {};
+	for (const [name, data] of Object.entries(testData.usageStatistics.groups)) {
+		groups[name] = {
+			quota: data.quota,
+			resetTime: data.resetTimeOffsetMs ? now + data.resetTimeOffsetMs : null
+		};
+	}
+	return { groups };
+}
+
+class ExtensionState implements vscode.Disposable {
 	private readonly outputChannel: vscode.OutputChannel;
 	statusBarItem: vscode.StatusBarItem;
 	refreshTimer?: ReturnType<typeof setTimeout>;
@@ -28,12 +46,15 @@ class ExtensionState {
 	lastRefreshSucceeded = false;
 	consecutiveFailures = 0;
 	isActive = false;
+	fullQuotaNotifiedCategories = new Set<string>();
+	lowQuotaNotifiedCategories = new Set<string>();
+	sessionTracker: SessionQuotaTracker | null = null;
 
 	constructor(context: vscode.ExtensionContext) {
-		this.outputChannel = vscode.window.createOutputChannel('AG Usage');
+		this.outputChannel = vscode.window.createOutputChannel(EXTENSION_TITLE);
 		this.statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, STATUS_BAR_PRIORITY);
 		this.statusBarItem.command = REFRESH_COMMAND;
-		this.statusBarItem.text = '$(rocket) AG Usage';
+		this.statusBarItem.text = `$(rocket) ${EXTENSION_TITLE}`;
 		this.isActive = true;
 
 		context.subscriptions.push(this.outputChannel, this.statusBarItem);
@@ -47,6 +68,9 @@ class ExtensionState {
 		this.refreshPromise = null;
 		this.lastRefreshSucceeded = false;
 		this.consecutiveFailures = 0;
+		this.fullQuotaNotifiedCategories.clear();
+		this.lowQuotaNotifiedCategories.clear();
+		this.sessionTracker = null;
 	}
 
 	clearTimers() {
@@ -64,7 +88,7 @@ class ExtensionState {
 		if (!this.isActive) { return; }
 		const timestamp = new Date().toISOString();
 		const logMessage = error
-			? `[${timestamp}] ${message}: ${error instanceof Error ? error.message : String(error)}`
+			? `[${timestamp}] ${message}: ${getErrorMessage(error)}`
 			: `[${timestamp}] ${message}`;
 		this.outputChannel.appendLine(logMessage);
 	}
@@ -73,27 +97,66 @@ class ExtensionState {
 let state: ExtensionState | undefined;
 
 export function activate(context: vscode.ExtensionContext) {
+	if (!vscode.env.appName.toLowerCase().includes('antigravity')) {
+		vscode.window.showWarningMessage(
+			'AG Usage is designed exclusively for the Antigravity IDE. It will not work correctly in this editor.',
+			'I understand'
+		);
+	}
+
 	state = new ExtensionState(context);
+	context.subscriptions.push(state);
 	state.statusBarItem.show();
 
 	context.subscriptions.push(
 		vscode.commands.registerCommand(REFRESH_COMMAND, () => refresh(true)),
 		vscode.commands.registerCommand(SETTINGS_COMMAND, () => vscode.commands.executeCommand('workbench.action.openSettings', CONFIG_NAMESPACE)),
 		vscode.workspace.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(`${CONFIG_NAMESPACE}.refreshInterval`)) {
-				state?.log('Refresh interval configuration changed');
-				startAutoRefresh();
+			if (!e.affectsConfiguration(CONFIG_NAMESPACE)) { return; }
+			if (!state) { return; }
+
+			state.log('Configuration changed');
+
+			if (e.affectsConfiguration(`${CONFIG_NAMESPACE}.trackSessionUsage`) && state.lastStatsData) {
+				initializeSessionTracker(state, state.lastStatsData);
 			}
-			if (e.affectsConfiguration(`${CONFIG_NAMESPACE}.statusBarDisplay`)) {
-				if (!rerenderFromCache()) {
-					refresh(false).catch(err => state?.log('Refresh after display config change failed', err));
-				}
+
+			if ((e.affectsConfiguration(`${CONFIG_NAMESPACE}.notifyOnFullQuota`) || e.affectsConfiguration(`${CONFIG_NAMESPACE}.lowQuotaNotificationThreshold`)) && state.lastStatsData) {
+				checkQuotaNotifications(state, state.lastStatsData);
+			}
+
+			if (e.affectsConfiguration(`${CONFIG_NAMESPACE}.refreshInterval`)) {
+				startAutoRefresh();
+				return;
+			}
+
+			if (!rerenderFromCache()) {
+				refresh(false).catch(err => state?.log('Refresh after configuration change failed', err));
 			}
 		}),
 		vscode.window.onDidChangeActiveColorTheme(() => {
 			if (!rerenderFromCache()) {
 				refresh(false).catch(err => state?.log('Refresh after theme change failed', err));
 			}
+		}),
+		vscode.window.onDidChangeWindowState(async e => {
+			if (!state || !state.sessionTracker || !state.lastStatsData) { return; }
+			const config = vscode.workspace.getConfiguration(CONFIG_NAMESPACE);
+			if (!config.get<boolean>('perWindowSession', false)) { return; }
+
+			if (e.focused) {
+				try {
+					await refresh(false);
+					if (state && state.sessionTracker && state.lastStatsData) {
+						handleWindowFocusGained(state, state.lastStatsData);
+					}
+				} catch (err) {
+					state?.log('Refresh on focus gain failed', err);
+				}
+			} else {
+				handleWindowFocusLost(state, state.lastStatsData);
+			}
+			rerenderFromCache();
 		})
 	);
 
@@ -110,7 +173,6 @@ export async function deactivate() {
 		if (state.refreshPromise) {
 			await state.refreshPromise;
 		}
-		state.dispose();
 		state = undefined;
 	}
 }
@@ -160,7 +222,12 @@ function rerenderFromCache(): boolean {
 	if (!state || state.refreshPromise) { return false; }
 	if (!state.lastStatsData || !state.lastRefreshSucceeded) { return false; }
 	try {
-		renderStats(state.lastStatsData, state.statusBarItem);
+		const config = vscode.workspace.getConfiguration(CONFIG_NAMESPACE);
+		const isPerWindow = config.get<boolean>('perWindowSession', false);
+		const result = renderStats(state.lastStatsData, state.sessionTracker, isPerWindow);
+		state.statusBarItem.text = result.text;
+		state.statusBarItem.tooltip = result.tooltip;
+		state.statusBarItem.color = undefined;
 		return true;
 	} catch (error) {
 		state.log('Failed to render stats from cache', error);
@@ -168,19 +235,132 @@ function rerenderFromCache(): boolean {
 	}
 }
 
-function extractCsrfToken(cmd: string): string | undefined {
-	const patterns = [
-		/--csrf_token[=\s]+"([^"]+)"/i,
-		/--csrf_token[=\s]+'([^']+)'/i,
-		/--csrf_token[=\s]+([\w-]+)/i
-	];
-	for (const pattern of patterns) {
-		const match = cmd.match(pattern);
-		if (match?.[1]) {
-			return match[1].trim();
+function checkQuotaNotifications(state: ExtensionState, statsData: UsageStatistics) {
+	const config = vscode.workspace.getConfiguration(CONFIG_NAMESPACE);
+	if (config.get<boolean>('notifyOnFullQuota')) {
+		const { groups } = statsData;
+		for (const category of CATEGORY_ORDER) {
+			const group = groups[category];
+			if (group) {
+				if (group.quota >= 1) {
+					if (!state.fullQuotaNotifiedCategories.has(category)) {
+						vscode.window.showInformationMessage(`${EXTENSION_TITLE}: Your quota for ${category} has been refilled to 100%.`);
+						state.fullQuotaNotifiedCategories.add(category);
+					}
+				} else {
+					state.fullQuotaNotifiedCategories.delete(category);
+				}
+			}
 		}
 	}
-	return undefined;
+
+	const threshold = config.get<number>('lowQuotaNotificationThreshold', 0);
+	if (threshold > 0) {
+		const { groups } = statsData;
+		for (const category of CATEGORY_ORDER) {
+			const group = groups[category];
+			if (group) {
+				const percentage = group.quota * 100;
+				if (percentage < threshold) {
+					if (!state.lowQuotaNotifiedCategories.has(category)) {
+						vscode.window.showWarningMessage(`${EXTENSION_TITLE}: ${category} has less than ${threshold}% quota remaining.`);
+						state.lowQuotaNotifiedCategories.add(category);
+					}
+				} else {
+					state.lowQuotaNotifiedCategories.delete(category);
+				}
+			}
+		}
+	}
+}
+
+function initializeSessionTracker(state: ExtensionState, statsData: UsageStatistics) {
+	const config = vscode.workspace.getConfiguration(CONFIG_NAMESPACE);
+	if (!config.get<boolean>('trackSessionUsage', true)) {
+		state.sessionTracker = null;
+		return;
+	}
+
+	if (state.sessionTracker) {
+		updateFocusBaseline(state, statsData);
+		return;
+	}
+
+	const cumulativeConsumed: Record<string, number> = {};
+	const focusBaseline: Record<string, number> = {};
+	const lastQuota: Record<string, number> = {};
+	for (const category of CATEGORY_ORDER) {
+		const group = statsData.groups[category];
+		if (group) {
+			cumulativeConsumed[category] = 0;
+			focusBaseline[category] = group.quota;
+			lastQuota[category] = group.quota;
+		}
+	}
+
+	state.sessionTracker = {
+		sessionStartTime: Date.now(),
+		cumulativeConsumed,
+		focusBaseline,
+		lastQuota
+	};
+	state.log('Session tracker initialized');
+}
+
+function updateFocusBaseline(state: ExtensionState, statsData: UsageStatistics) {
+	if (!state.sessionTracker) { return; }
+
+	for (const category of CATEGORY_ORDER) {
+		const group = statsData.groups[category];
+		const tracker = state.sessionTracker;
+		const lastKnown = tracker.lastQuota[category];
+
+		if (group && lastKnown !== undefined) {
+			tracker.lastQuota[category] = group.quota;
+			if (tracker.focusBaseline && tracker.focusBaseline[category] !== undefined) {
+				const baseline = tracker.focusBaseline[category];
+				if (group.quota > lastKnown) {
+					const consumedBeforeRefill = Math.max(0, baseline - lastKnown);
+					tracker.cumulativeConsumed[category] =
+						(tracker.cumulativeConsumed[category] ?? 0) + consumedBeforeRefill;
+					tracker.focusBaseline[category] = group.quota;
+					state.log(`Quota reset detected for ${category}. Banked ${consumedBeforeRefill.toFixed(4)}% consumption and updated baseline.`);
+				}
+			}
+		}
+	}
+}
+
+function handleWindowFocusLost(state: ExtensionState, statsData: UsageStatistics) {
+	if (!state.sessionTracker || !state.sessionTracker.focusBaseline) { return; }
+
+	for (const category of CATEGORY_ORDER) {
+		const group = statsData.groups[category];
+		const baseline = state.sessionTracker.focusBaseline[category];
+		if (group && baseline !== undefined) {
+			const consumed = Math.max(0, baseline - group.quota);
+			state.sessionTracker.cumulativeConsumed[category] =
+				(state.sessionTracker.cumulativeConsumed[category] ?? 0) + consumed;
+		}
+	}
+
+	state.sessionTracker.focusBaseline = null;
+	state.log('Session consumption recorded on focus loss');
+}
+
+function handleWindowFocusGained(state: ExtensionState, statsData: UsageStatistics) {
+	if (!state.sessionTracker) { return; }
+
+	const focusBaseline: Record<string, number> = {};
+	for (const category of CATEGORY_ORDER) {
+		const group = statsData.groups[category];
+		if (group) {
+			focusBaseline[category] = group.quota;
+		}
+	}
+
+	state.sessionTracker.focusBaseline = focusBaseline;
+	state.log('Focus baseline set on window focus');
 }
 
 async function refresh(showRefreshing: boolean) {
@@ -196,6 +376,20 @@ async function refresh(showRefreshing: boolean) {
 
 	const currentState = state;
 
+	const applyStatsUpdate = (statsData: UsageStatistics, logMessage: string) => {
+		currentState.lastStatsData = statsData;
+		currentState.lastRefreshSucceeded = true;
+		initializeSessionTracker(currentState, statsData);
+		const config = vscode.workspace.getConfiguration(CONFIG_NAMESPACE);
+		const isPerWindow = config.get<boolean>('perWindowSession', false);
+		const result = renderStats(statsData, currentState.sessionTracker, isPerWindow);
+		currentState.statusBarItem.text = result.text;
+		currentState.statusBarItem.tooltip = result.tooltip;
+		currentState.statusBarItem.color = undefined;
+		checkQuotaNotifications(currentState, statsData);
+		currentState.log(logMessage);
+	};
+
 	const executeRefresh = async () => {
 		if (!currentState.isActive) { return; }
 		if (showRefreshing) {
@@ -206,15 +400,20 @@ async function refresh(showRefreshing: boolean) {
 		try {
 			let statsData: UsageStatistics;
 
+			if (USE_MOCK_DATA) {
+				await minDelay;
+				if (!currentState.isActive) { return; }
+				statsData = await loadMockUsageStatistics();
+				applyStatsUpdate(statsData, 'Refresh completed using mock data');
+				return;
+			}
+
 			const connection = currentState.cachedConnection;
 			if (connection && isCacheValid(connection)) {
 				try {
 					[statsData] = await Promise.all([fetchStats(connection.port, connection.csrfToken), minDelay]);
 					if (!currentState.isActive) { return; }
-					currentState.lastStatsData = statsData;
-					currentState.lastRefreshSucceeded = true;
-					renderStats(statsData, currentState.statusBarItem);
-					currentState.log('Refresh completed using cached connection');
+					applyStatsUpdate(statsData, 'Refresh completed using cached connection');
 					return;
 				} catch (error) {
 					currentState.log('Cached connection failed, attempting reconnection', error);
@@ -247,18 +446,14 @@ async function refresh(showRefreshing: boolean) {
 
 			[statsData] = await Promise.all([fetchStats(port, csrfToken), minDelay]);
 			if (!currentState.isActive) { return; }
-			currentState.lastStatsData = statsData;
-			currentState.lastRefreshSucceeded = true;
-			renderStats(statsData, currentState.statusBarItem);
-			currentState.log('Refresh completed successfully');
-
+			applyStatsUpdate(statsData, 'Refresh completed successfully');
 		} catch (error) {
 			if (!currentState.isActive) { return; }
 			currentState.lastRefreshSucceeded = false;
 			await minDelay;
 			const err = error instanceof Error ? error : new Error(String(error));
 			currentState.log('Refresh failed', err);
-			currentState.statusBarItem.text = '$(error) AG Usage';
+			currentState.statusBarItem.text = `$(error) ${EXTENSION_TITLE}`;
 			currentState.statusBarItem.tooltip = createErrorTooltip(err);
 		}
 	};

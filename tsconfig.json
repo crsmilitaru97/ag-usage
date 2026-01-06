@@ -8,6 +8,8 @@
 		"sourceMap": false,
 		"strict": true,
 		"skipLibCheck": true,
+		"resolveJsonModule": true,
+		"esModuleInterop": true,
 		"rootDir": "./src",
 		"outDir": "./out"
 	},

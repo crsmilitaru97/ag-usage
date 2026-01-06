@@ -4,6 +4,8 @@
 .gitignore
 .vscodeignore
 node_modules/**
+out/*.js
+!out/extension.js
 out/test/**
 src/**
 test/**
@@ -14,3 +16,4 @@ npm-debug.log
 yarn-error.log
 package-lock.json
 example.png
+dev
