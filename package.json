@@ -1,6 +1,6 @@
 {
   "name": "ag-usage",
-  "version": "1.4.0",
+  "version": "1.4.1",
   "displayName": "AG Usage",
   "description": "Track usage of Antigravity AI models",
   "author": "Cristian Militaru",
@@ -48,7 +48,7 @@
       "properties": {
         "ag-usage.refreshInterval": {
           "type": "number",
-          "default": 30,
+          "default": 60,
           "minimum": 10,
           "maximum": 3600,
           "description": "Refresh interval in seconds. Set to 0 to disable auto-refresh."

@@ -1,7 +1,15 @@
 import * as vscode from 'vscode';
-import { CATEGORY_ORDER, COLOR_THRESHOLDS, EXTENSION_TITLE, MS_PER_MINUTE, SETTINGS_COMMAND, SVG_CONFIG, THEME_COLORS } from './constants';
+import { CATEGORY_ORDER, COLOR_THRESHOLDS, EXTENSION_TITLE, MS_PER_DAY, MS_PER_HOUR, MS_PER_MINUTE, SETTINGS_COMMAND, SVG_CONFIG, THEME_COLORS } from './constants';
 import { formatRelativeTime, formatRemainingTimeSeparate, formatStatusBarText } from './formatter';
 import { QuotaGroup, SessionQuotaTracker, UsageStatistics } from './types';
+
+const PLAN = {
+  FREE: 'free',
+  PRO: 'pro',
+  ULTRA: 'ultra'
+} as const;
+
+type PlanType = typeof PLAN[keyof typeof PLAN];
 
 const LAYOUT = {
   cardPadding: 5,
@@ -66,6 +74,8 @@ interface CategorySvgOptions {
   isPerWindow: boolean;
   sessionConsumed?: number;
   sessionElapsedMs?: number;
+
+  plan: PlanType;
 }
 
 function getThemeColors(): ThemeColors {
@@ -118,16 +128,31 @@ function buildCountdownSvg(centerX: number, y: number, relative: string, absolut
     <text x="${centerX}" y="${y + 11}" fill="${color}" fill-opacity="${OPACITY.medium}" ${LAYOUT.textStyle} font-size="10" font-weight="500">${absolute}</text>`;
 }
 
-function buildTimeLeftSvg(centerX: number, y: number, timer: ReturnType<typeof formatRemainingTimeSeparate>, colors: ThemeColors): string {
+function buildTimeLeftSvg(centerX: number, y: number, timer: ReturnType<typeof formatRemainingTimeSeparate>, colors: ThemeColors, isWeeklyQuotaTriggered: boolean): string {
   const color = timer.diffMs < 10 * MS_PER_MINUTE ? colors.success : colors.text;
-  return buildCountdownSvg(centerX, y, escapeXml(timer.relativeText), timer.absoluteText ? escapeXml(timer.absoluteText) : null, color);
+  const countdown = buildCountdownSvg(centerX, y, escapeXml(timer.relativeText), timer.absoluteText ? escapeXml(timer.absoluteText) : null, color);
+
+  if (isWeeklyQuotaTriggered) {
+    const baseOffset = timer.absoluteText ? 13 : 0;
+    const sepY = y + baseOffset + 10;
+    const textY1 = sepY + 20;
+    const textY2 = textY1 + 10;
+
+    return countdown +
+      buildSeparatorSvg(centerX, sepY, colors.text) +
+      `<text x="${centerX}" y="${textY1}" fill="${colors.error}" ${LAYOUT.textStyle} font-size="9" font-weight="700">WEEKLY QUOTA</text>` +
+      `<text x="${centerX}" y="${textY2}" fill="${colors.error}" ${LAYOUT.textStyle} font-size="9" font-weight="700">EXCEEDED</text>`;
+  }
+
+  return countdown;
 }
 
-function buildZeroPercentState(centerX: number, centerY: number, resetTime: number, colors: ThemeColors): string {
+function buildZeroPercentState(centerX: number, centerY: number, resetTime: number, colors: ThemeColors, isWeeklyQuotaTriggered: boolean): string {
   const timer = formatRemainingTimeSeparate(resetTime);
   const color = timer.diffMs < 10 * MS_PER_MINUTE ? colors.success : colors.text;
-  const clockY = timer.absoluteText ? centerY - 20 : centerY - 15;
-  return buildClockSvg(centerX, clockY, color, OPACITY.medium) + buildTimeLeftSvg(centerX, centerY + 15, timer, colors);
+  const clockY = isWeeklyQuotaTriggered ? centerY - 32 : (timer.absoluteText ? centerY - 20 : centerY - 15);
+  const timeY = isWeeklyQuotaTriggered ? centerY : centerY + 15;
+  return buildClockSvg(centerX, clockY, color, OPACITY.medium) + buildTimeLeftSvg(centerX, timeY, timer, colors, isWeeklyQuotaTriggered);
 }
 
 function buildSessionInfoSvg(centerX: number, y: number, consumed: number, elapsedMs: number | undefined, isPerWindow: boolean, colors: ThemeColors): string {
@@ -168,7 +193,7 @@ function isValidUsageStatistics(data: unknown): data is UsageStatistics {
 }
 
 function buildCategorySvg(options: CategorySvgOptions): string {
-  const { category, group, xPosition, colors, hasSession, isPerWindow, sessionConsumed, sessionElapsedMs } = options;
+  const { category, group, xPosition, colors, hasSession, isPerWindow, sessionConsumed, sessionElapsedMs, plan } = options;
   const { columnWidth, barWidth } = SVG_CONFIG;
   const { cardPadding, cardRadius, textYCategory, textYPercent, barY, barHeight, barRadius } = LAYOUT;
   const { cardHeight, separatorY, textYTime } = hasSession ? LAYOUT_FULL : LAYOUT_COMPACT;
@@ -177,6 +202,8 @@ function buildCategorySvg(options: CategorySvgOptions): string {
   const percentage = Math.round(Math.max(0, Math.min(1, group.quota)) * 100);
   const barColor = getBarColor(percentage, colors);
   const label = escapeXml(category).toUpperCase();
+  const resetMs = group.resetTime ? group.resetTime - Date.now() : 0;
+  const isWeeklyQuotaTriggered = (plan === PLAN.PRO || plan === PLAN.ULTRA) && resetMs > 5 * MS_PER_HOUR;
 
   const cardX = xPosition + cardPadding;
   const cardW = columnWidth - (cardPadding * 2);
@@ -186,7 +213,7 @@ function buildCategorySvg(options: CategorySvgOptions): string {
     <text x="${centerX}" y="${textYCategory}" fill="${colors.text}" fill-opacity="${OPACITY.high}" ${LAYOUT.textStyle} font-size="9" font-weight="500" letter-spacing="0.5">${label}</text>`;
 
   if (percentage === 0 && typeof group.resetTime === 'number') {
-    return svg + buildZeroPercentState(centerX, cardPadding + cardHeight / 2, group.resetTime, colors);
+    return svg + buildZeroPercentState(centerX, cardPadding + cardHeight / 2, group.resetTime, colors, isWeeklyQuotaTriggered);
   }
 
   svg += buildProgressBarSvg(centerX, textYPercent, percentage, barColor, barY, barWidth, barHeight, barRadius, colors.barBackground);
@@ -194,23 +221,29 @@ function buildCategorySvg(options: CategorySvgOptions): string {
   if (hasSession && sessionConsumed !== undefined) {
     svg += buildSessionInfoSvg(centerX, LAYOUT_FULL.textYSession, sessionConsumed, sessionElapsedMs, isPerWindow, colors);
     if (percentage >= 100 || typeof group.resetTime === 'number') {
-      svg += buildSeparatorSvg(centerX, separatorY, colors.text);
+      const sepY = isWeeklyQuotaTriggered ? separatorY - 6 : separatorY;
+      svg += buildSeparatorSvg(centerX, sepY, colors.text);
     }
   }
 
-  if (percentage >= 100) {
+  const maxResetMs = plan === PLAN.FREE ? 7 * MS_PER_DAY : 5 * MS_PER_HOUR;
+  if (percentage >= 100 && resetMs + 5 * MS_PER_MINUTE > maxResetMs) {
     svg += `<text x="${centerX}" y="${textYTime}" fill="${colors.text}" fill-opacity="${OPACITY.medium}" ${LAYOUT.textStyle} font-size="12" font-weight="500">Not started</text>`;
   } else if (typeof group.resetTime === 'number') {
-    svg += buildTimeLeftSvg(centerX, textYTime, formatRemainingTimeSeparate(group.resetTime), colors);
+    const timeY = isWeeklyQuotaTriggered ? textYTime - 24 : textYTime;
+    svg += buildTimeLeftSvg(centerX, timeY, formatRemainingTimeSeparate(group.resetTime), colors, isWeeklyQuotaTriggered);
   }
 
   return svg;
 }
 
-function buildSvgContent(categories: string[], groups: Record<string, QuotaGroup>, hasSession: boolean, isPerWindow: boolean, sessionUsages?: Record<string, number> | null, sessionElapsedMs?: number): string {
+function buildSvgContent(categories: string[], groups: Record<string, QuotaGroup>, hasSession: boolean, isPerWindow: boolean, plan: PlanType, sessionUsages?: Record<string, number> | null, sessionElapsedMs?: number): string {
   const { columnWidth, columnPadding } = SVG_CONFIG;
   const colors = getThemeColors();
-  const svgHeight = hasSession ? LAYOUT_FULL.svgHeight : LAYOUT_COMPACT.svgHeight;
+
+  const baseLayout = hasSession ? LAYOUT_FULL : LAYOUT_COMPACT;
+  const svgHeight = baseLayout.svgHeight;
+
   const totalWidth = categories.length > 0
     ? categories.length * columnWidth + (categories.length - 1) * columnPadding
     : columnWidth;
@@ -232,7 +265,8 @@ function buildSvgContent(categories: string[], groups: Record<string, QuotaGroup
         hasSession,
         isPerWindow,
         sessionConsumed,
-        sessionElapsedMs: elapsedMs
+        sessionElapsedMs: elapsedMs,
+        plan
       });
     }
   });
@@ -270,11 +304,21 @@ export function renderStats(data: UsageStatistics, sessionTracker: SessionQuotaT
   const hasSession = sessionTracker !== null;
   const sessionUsages = calculatePerCategorySessionUsage(groups, sessionTracker);
   const sessionElapsedMs = sessionTracker ? Date.now() - sessionTracker.sessionStartTime : undefined;
-  const svgContent = buildSvgContent(categories, groups, hasSession, isPerWindow, sessionUsages, sessionElapsedMs);
+  const planLower = data.plan?.toLowerCase() ?? '';
+  let plan: PlanType = PLAN.FREE;
+  if (planLower.includes(PLAN.ULTRA)) {
+    plan = PLAN.ULTRA;
+  } else if (planLower.includes(PLAN.PRO) || (planLower && !planLower.includes(PLAN.FREE))) {
+    plan = PLAN.PRO;
+  }
+
+  const svgContent = buildSvgContent(categories, groups, hasSession, isPerWindow, plan, sessionUsages, sessionElapsedMs);
+
+  const planDisplay = plan.charAt(0).toUpperCase() + plan.slice(1);
 
   const tooltip = new vscode.MarkdownString();
   tooltip.appendMarkdown(`<img src="data:image/svg+xml;base64,${Buffer.from(svgContent).toString('base64')}"/>\n\n`);
-  tooltip.appendMarkdown(`<div align="center"><a href="command:${SETTINGS_COMMAND}">Configure Settings</a></div>`);
+  tooltip.appendMarkdown(`<div align="center"><strong>${planDisplay}</strong> · <a href="command:${SETTINGS_COMMAND}">Settings</a></div>`);
   tooltip.isTrusted = true;
   tooltip.supportHtml = true;
 

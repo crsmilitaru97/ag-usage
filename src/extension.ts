@@ -32,7 +32,7 @@ async function loadMockUsageStatistics(): Promise<UsageStatistics> {
 			resetTime: data.resetTimeOffsetMs ? now + data.resetTimeOffsetMs : null
 		};
 	}
-	return { groups };
+	return { groups, plan: testData.usageStatistics.plan };
 }
 
 class ExtensionState implements vscode.Disposable {

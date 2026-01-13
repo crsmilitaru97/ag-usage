@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.4.1] - 2026-01-13
+
+- Added plan display (Free/Pro/Ultra) in tooltip
+- Fixed "Not started" showing incorrectly in some cases
+- Added "Weekly Quota Exceeded" warning in tooltip for Pro/Ultra users
+
 ## [1.4.0] - 2026-01-06
 
 - Redesigned tooltip with more detailed cards

@@ -25,7 +25,7 @@
 
 - **Status bar integration**: Displays a status bar item showing the overall average usage percentage of your AI models.
 
-- **Auto-refresh**: Usage data is automatically updated every 30 seconds by default, but can be configured.
+- **Auto-refresh**: Usage data is automatically updated every 60 seconds by default, but can be configured.
 
 - **Detailed tooltip**: Hover over the status bar item to see a detailed breakdown and visual progress bars for model categories (as they are calculated by Antigravity):
   - **Gemini 3 Pro** - Gemini 3 Pro (High) and Gemini 3 Pro (Low)
@@ -45,7 +45,7 @@
 
 ## 📝 Configuration
 
-- `ag-usage.refreshInterval`: Set the interval (in seconds) between automatic refreshes. Default is `30` seconds.
+- `ag-usage.refreshInterval`: Set the interval (in seconds) between automatic refreshes. Default is `60` seconds.
 
 - `ag-usage.statusBarDisplay`: Control what information is shown in the status bar. Options:
   - `average` - Shows the average usage across all groups
