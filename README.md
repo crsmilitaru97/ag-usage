@@ -18,7 +18,7 @@
 ---
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/crsmilitaru97/ag-usage/main/example.png" alt="AG Usage Preview" height="300" style="border-radius: 12px; border: 1px solid #30363d; box-shadow: 0 4px 10px rgba(0,0,0,0.25);">
+  <img src="https://raw.githubusercontent.com/crsmilitaru97/ag-usage/main/example.png" alt="AG Usage Preview" style="max-width: 100%; max-height: 300px; width: auto; height: auto; border-radius: 12px; border: 1px solid #30363d; box-shadow: 0 4px 10px rgba(0,0,0,0.25);">
 </p>
 
 ## ✨ Features
