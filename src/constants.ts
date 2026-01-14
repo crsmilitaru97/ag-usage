@@ -32,7 +32,7 @@ export const PROCESS_IDENTIFIERS = {
 
 export const IDE_INFO = {
   NAME: 'antigravity',
-  VERSION: '1.13.3'
+  VERSION: '1.14.2'
 };
 
 export const SVG_CONFIG = {

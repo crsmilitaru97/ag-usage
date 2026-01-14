@@ -38,9 +38,9 @@ const LAYOUT_COMPACT = {
 };
 
 const OPACITY = {
-  veryLow: 0.15,
-  medium: 0.5,
-  high: 0.75
+  veryLow: 0.2,
+  medium: 0.6,
+  high: 0.8
 };
 
 const XML_ESCAPES: Record<string, string> = {
@@ -128,11 +128,11 @@ function buildCountdownSvg(centerX: number, y: number, relative: string, absolut
     <text x="${centerX}" y="${y + 11}" fill="${color}" fill-opacity="${OPACITY.medium}" ${LAYOUT.textStyle} font-size="10" font-weight="500">${absolute}</text>`;
 }
 
-function buildTimeLeftSvg(centerX: number, y: number, timer: ReturnType<typeof formatRemainingTimeSeparate>, colors: ThemeColors, isWeeklyQuotaTriggered: boolean): string {
-  const color = timer.diffMs < 10 * MS_PER_MINUTE ? colors.success : colors.text;
+function buildTimeLeftSvg(centerX: number, y: number, timer: ReturnType<typeof formatRemainingTimeSeparate>, colors: ThemeColors, isWeeklyQuotaTriggered: boolean, showLabel: boolean): string {
+  const color = isWeeklyQuotaTriggered && !showLabel ? colors.error : (timer.diffMs < 10 * MS_PER_MINUTE ? colors.success : colors.text);
   const countdown = buildCountdownSvg(centerX, y, escapeXml(timer.relativeText), timer.absoluteText ? escapeXml(timer.absoluteText) : null, color);
 
-  if (isWeeklyQuotaTriggered) {
+  if (isWeeklyQuotaTriggered && showLabel) {
     const baseOffset = timer.absoluteText ? 13 : 0;
     const sepY = y + baseOffset + 10;
     const textY1 = sepY + 20;
@@ -140,8 +140,8 @@ function buildTimeLeftSvg(centerX: number, y: number, timer: ReturnType<typeof f
 
     return countdown +
       buildSeparatorSvg(centerX, sepY, colors.text) +
-      `<text x="${centerX}" y="${textY1}" fill="${colors.error}" ${LAYOUT.textStyle} font-size="9" font-weight="700">WEEKLY QUOTA</text>` +
-      `<text x="${centerX}" y="${textY2}" fill="${colors.error}" ${LAYOUT.textStyle} font-size="9" font-weight="700">EXCEEDED</text>`;
+      `<text x="${centerX}" y="${textY1}" fill="${colors.error}" ${LAYOUT.textStyle} font-size="9" font-weight="600">WEEKLY QUOTA</text>` +
+      `<text x="${centerX}" y="${textY2}" fill="${colors.error}" ${LAYOUT.textStyle} font-size="9" font-weight="600">EXCEEDED</text>`;
   }
 
   return countdown;
@@ -152,7 +152,7 @@ function buildZeroPercentState(centerX: number, centerY: number, resetTime: numb
   const color = timer.diffMs < 10 * MS_PER_MINUTE ? colors.success : colors.text;
   const clockY = isWeeklyQuotaTriggered ? centerY - 32 : (timer.absoluteText ? centerY - 20 : centerY - 15);
   const timeY = isWeeklyQuotaTriggered ? centerY : centerY + 15;
-  return buildClockSvg(centerX, clockY, color, OPACITY.medium) + buildTimeLeftSvg(centerX, timeY, timer, colors, isWeeklyQuotaTriggered);
+  return buildClockSvg(centerX, clockY, color, OPACITY.medium) + buildTimeLeftSvg(centerX, timeY, timer, colors, isWeeklyQuotaTriggered, true);
 }
 
 function buildSessionInfoSvg(centerX: number, y: number, consumed: number, elapsedMs: number | undefined, isPerWindow: boolean, colors: ThemeColors): string {
@@ -221,8 +221,7 @@ function buildCategorySvg(options: CategorySvgOptions): string {
   if (hasSession && sessionConsumed !== undefined) {
     svg += buildSessionInfoSvg(centerX, LAYOUT_FULL.textYSession, sessionConsumed, sessionElapsedMs, isPerWindow, colors);
     if (percentage >= 100 || typeof group.resetTime === 'number') {
-      const sepY = isWeeklyQuotaTriggered ? separatorY - 6 : separatorY;
-      svg += buildSeparatorSvg(centerX, sepY, colors.text);
+      svg += buildSeparatorSvg(centerX, separatorY, colors.text);
     }
   }
 
@@ -230,8 +229,7 @@ function buildCategorySvg(options: CategorySvgOptions): string {
   if (percentage >= 100 && resetMs + 5 * MS_PER_MINUTE > maxResetMs) {
     svg += `<text x="${centerX}" y="${textYTime}" fill="${colors.text}" fill-opacity="${OPACITY.medium}" ${LAYOUT.textStyle} font-size="12" font-weight="500">Not started</text>`;
   } else if (typeof group.resetTime === 'number') {
-    const timeY = isWeeklyQuotaTriggered ? textYTime - 24 : textYTime;
-    svg += buildTimeLeftSvg(centerX, timeY, formatRemainingTimeSeparate(group.resetTime), colors, isWeeklyQuotaTriggered);
+    svg += buildTimeLeftSvg(centerX, textYTime, formatRemainingTimeSeparate(group.resetTime), colors, isWeeklyQuotaTriggered, false);
   }
 
   return svg;

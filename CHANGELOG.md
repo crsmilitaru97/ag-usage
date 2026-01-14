@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.4.2] - 2026-01-14
+
+- Fixed UI overlap in tooltip when weekly quota warning is triggered
+
 ## [1.4.1] - 2026-01-13
 
 - Added plan display (Free/Pro/Ultra) in tooltip
