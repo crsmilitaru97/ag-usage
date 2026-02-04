@@ -1,6 +1,6 @@
 {
   "name": "ag-usage",
-  "version": "1.4.2",
+  "version": "1.4.3",
   "displayName": "AG Usage",
   "description": "Track usage of Antigravity AI models",
   "author": "Cristian Militaru",
@@ -41,6 +41,11 @@
         "command": "ag-usage.openSettings",
         "title": "Open AG Usage Settings",
         "icon": "$(gear)"
+      },
+      {
+        "command": "ag-usage.resetSession",
+        "title": "Reset Session Usage",
+        "icon": "$(history)"
       }
     ],
     "configuration": {

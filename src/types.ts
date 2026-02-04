@@ -12,6 +12,7 @@ export interface CachedConnection {
 export interface UsageStatistics {
   groups: Record<string, QuotaGroup>;
   plan?: string;
+  planName?: string;
 }
 
 export interface SessionQuotaTracker {
@@ -47,13 +48,20 @@ export interface ModelConfig {
 export interface ServerUserStatusResponse {
   userStatus?: {
     cascadeModelConfigData?: { clientModelConfigs: ModelConfig[] };
+    planStatus?: {
+      planInfo?: {
+        planName?: string;
+      };
+    };
     userTier?: {
       name: string;
       id: string;
     };
     plan?: string;
+    planName?: string;
   };
   plan?: string;
+  planName?: string;
 }
 
 

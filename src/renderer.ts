@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { CATEGORY_ORDER, COLOR_THRESHOLDS, EXTENSION_TITLE, MS_PER_DAY, MS_PER_HOUR, MS_PER_MINUTE, SETTINGS_COMMAND, SVG_CONFIG, THEME_COLORS } from './constants';
+import { CATEGORY_ORDER, COLOR_THRESHOLDS, EXTENSION_TITLE, MS_PER_DAY, MS_PER_HOUR, MS_PER_MINUTE, RESET_SESSION_COMMAND, SETTINGS_COMMAND, SVG_CONFIG, THEME_COLORS } from './constants';
 import { formatRelativeTime, formatRemainingTimeSeparate, formatStatusBarText } from './formatter';
 import { QuotaGroup, SessionQuotaTracker, UsageStatistics } from './types';
 
@@ -302,21 +302,15 @@ export function renderStats(data: UsageStatistics, sessionTracker: SessionQuotaT
   const hasSession = sessionTracker !== null;
   const sessionUsages = calculatePerCategorySessionUsage(groups, sessionTracker);
   const sessionElapsedMs = sessionTracker ? Date.now() - sessionTracker.sessionStartTime : undefined;
-  const planLower = data.plan?.toLowerCase() ?? '';
-  let plan: PlanType = PLAN.FREE;
-  if (planLower.includes(PLAN.ULTRA)) {
-    plan = PLAN.ULTRA;
-  } else if (planLower.includes(PLAN.PRO) || (planLower && !planLower.includes(PLAN.FREE))) {
-    plan = PLAN.PRO;
-  }
+  const plan = (data.plan?.toLowerCase() as PlanType) ?? PLAN.FREE;
 
   const svgContent = buildSvgContent(categories, groups, hasSession, isPerWindow, plan, sessionUsages, sessionElapsedMs);
 
-  const planDisplay = plan.charAt(0).toUpperCase() + plan.slice(1);
+  const planDisplay = data.planName ?? (plan.charAt(0).toUpperCase() + plan.slice(1));
 
   const tooltip = new vscode.MarkdownString();
   tooltip.appendMarkdown(`<img src="data:image/svg+xml;base64,${Buffer.from(svgContent).toString('base64')}"/>\n\n`);
-  tooltip.appendMarkdown(`<div align="center"><strong>${planDisplay}</strong> · <a href="command:${SETTINGS_COMMAND}">Settings</a></div>`);
+  tooltip.appendMarkdown(`<div align="center"><strong>${planDisplay}</strong> · <a href="command:${SETTINGS_COMMAND}">Settings</a> · <a href="command:${RESET_SESSION_COMMAND}">Reset Session</a></div>`);
   tooltip.isTrusted = true;
   tooltip.supportHtml = true;
 

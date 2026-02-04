@@ -267,9 +267,8 @@ export async function fetchStats(port: number, csrfToken: string): Promise<Usage
     }
   }
 
-  const plan = response.userStatus?.userTier?.name ??
-    response.userStatus?.plan ??
-    response.plan;
+  const plan = response.userStatus?.planStatus?.planInfo?.planName;
+  const planName = response.userStatus?.userTier?.name;
 
-  return { groups, plan };
+  return { groups, plan, planName };
 }

@@ -12,6 +12,7 @@ import {
 	MIN_DISPLAY_DELAY_MS,
 	MS_PER_SECOND,
 	REFRESH_COMMAND,
+	RESET_SESSION_COMMAND,
 	SETTINGS_COMMAND,
 	STATUS_BAR_PRIORITY,
 	USE_MOCK_DATA
@@ -111,6 +112,14 @@ export function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(
 		vscode.commands.registerCommand(REFRESH_COMMAND, () => refresh(true)),
 		vscode.commands.registerCommand(SETTINGS_COMMAND, () => vscode.commands.executeCommand('workbench.action.openSettings', CONFIG_NAMESPACE)),
+		vscode.commands.registerCommand(RESET_SESSION_COMMAND, () => {
+			if (state && state.lastStatsData) {
+				state.sessionTracker = null;
+				initializeSessionTracker(state, state.lastStatsData);
+				rerenderFromCache();
+				state.log('Session statistics reset by user');
+			}
+		}),
 		vscode.workspace.onDidChangeConfiguration(e => {
 			if (!e.affectsConfiguration(CONFIG_NAMESPACE)) { return; }
 			if (!state) { return; }

@@ -74,6 +74,8 @@
 
 - `ag-usage.refresh`: Manually triggers a scan for the Antigravity process and updates usage statistics.
 
+- `ag-usage.resetSession`: Manually triggers a reset of the session usage statistics (also accessible via the tooltip).
+
 ## 📝 Notes
 
 - Data from server may have a 3-5 minute margin of error. This can result in a "Soon" status or temporary delays in quota synchronization.

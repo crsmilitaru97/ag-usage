@@ -5,6 +5,7 @@ export const CONFIG_NAMESPACE = 'ag-usage';
 export const REFRESH_COMMAND = 'ag-usage.refresh';
 export const EXTENSION_TITLE = 'AG Usage';
 export const SETTINGS_COMMAND = 'ag-usage.openSettings';
+export const RESET_SESSION_COMMAND = 'ag-usage.resetSession';
 export const INITIAL_DELAY_MS = 1500;
 export const MIN_DISPLAY_DELAY_MS = 300;
 export const STATUS_BAR_PRIORITY = 100;
@@ -32,7 +33,7 @@ export const PROCESS_IDENTIFIERS = {
 
 export const IDE_INFO = {
   NAME: 'antigravity',
-  VERSION: '1.14.2'
+  VERSION: '1.15.8'
 };
 
 export const SVG_CONFIG = {

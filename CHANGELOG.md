@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.4.3] - 2026-02-05
+
+- Changed the way plan name is fetched from the API response
+- Added GEMINI.md file
+- Added a "Reset Session" action in the tooltip to manually reset session usage statistics
+
 ## [1.4.2] - 2026-01-14
 
 - Fixed UI overlap in tooltip when weekly quota warning is triggered
