@@ -33,7 +33,7 @@ export const PROCESS_IDENTIFIERS = {
 
 export const IDE_INFO = {
   NAME: 'antigravity',
-  VERSION: '1.15.8'
+  VERSION: '1.18.3'
 };
 
 export const SVG_CONFIG = {
@@ -71,7 +71,7 @@ export const THEME_COLORS = {
 };
 
 export const CATEGORY_NAMES = {
-  GEMINI_PRO: 'Gemini 3 Pro',
+  GEMINI_PRO: 'Gemini 3.1 Pro',
   GEMINI_FLASH: 'Gemini 3 Flash',
   CLAUDE_GPT: 'Claude/GPT'
 } as const;
@@ -85,7 +85,7 @@ export const DISPLAY_MODE_TO_CATEGORY: Record<string, string> = {
 };
 
 export const SHORT_NAMES: Record<string, string> = {
-  'Gemini 3 Pro': 'Pro',
+  'Gemini 3.1 Pro': 'Pro',
   'Gemini 3 Flash': 'Flash',
   'Claude/GPT': 'C/G'
 };

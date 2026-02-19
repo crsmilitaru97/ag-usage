@@ -38,7 +38,7 @@ async function loadMockUsageStatistics(): Promise<UsageStatistics> {
 
 class ExtensionState implements vscode.Disposable {
 	private readonly outputChannel: vscode.OutputChannel;
-	statusBarItem: vscode.StatusBarItem;
+	statusBarItem!: vscode.StatusBarItem;
 	refreshTimer?: ReturnType<typeof setTimeout>;
 	initialRefreshTimeout?: ReturnType<typeof setTimeout>;
 	cachedConnection: CachedConnection | null = null;
@@ -53,15 +53,40 @@ class ExtensionState implements vscode.Disposable {
 
 	constructor(context: vscode.ExtensionContext) {
 		this.outputChannel = vscode.window.createOutputChannel(EXTENSION_TITLE);
-		this.statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, STATUS_BAR_PRIORITY);
-		this.statusBarItem.command = REFRESH_COMMAND;
-		this.statusBarItem.text = `$(rocket) ${EXTENSION_TITLE}`;
+
 		this.isActive = true;
 
-		context.subscriptions.push(this.outputChannel, this.statusBarItem);
+		context.subscriptions.push(this.outputChannel);
+		this.recreateStatusBarItem();
+	}
+
+	recreateStatusBarItem() {
+		const config = vscode.workspace.getConfiguration(CONFIG_NAMESPACE);
+		const alignment = config.get<string>('statusBarAlignment') === 'Left'
+			? vscode.StatusBarAlignment.Left
+			: vscode.StatusBarAlignment.Right;
+		const priority = config.get<number>('statusBarPriority', STATUS_BAR_PRIORITY);
+
+		if (this.statusBarItem) {
+			const oldItem = this.statusBarItem;
+			this.statusBarItem = vscode.window.createStatusBarItem(alignment, priority);
+			this.statusBarItem.command = oldItem.command;
+			this.statusBarItem.text = oldItem.text;
+			this.statusBarItem.tooltip = oldItem.tooltip;
+			this.statusBarItem.color = oldItem.color;
+			this.statusBarItem.backgroundColor = oldItem.backgroundColor;
+			oldItem.dispose();
+		} else {
+			this.statusBarItem = vscode.window.createStatusBarItem(alignment, priority);
+			this.statusBarItem.command = REFRESH_COMMAND;
+			this.statusBarItem.text = `$(rocket) ${EXTENSION_TITLE}`;
+		}
+
+		this.statusBarItem.show();
 	}
 
 	dispose() {
+		this.statusBarItem?.dispose();
 		this.isActive = false;
 		this.clearTimers();
 		this.cachedConnection = null;
@@ -107,7 +132,6 @@ export function activate(context: vscode.ExtensionContext) {
 
 	state = new ExtensionState(context);
 	context.subscriptions.push(state);
-	state.statusBarItem.show();
 
 	context.subscriptions.push(
 		vscode.commands.registerCommand(REFRESH_COMMAND, () => refresh(true)),
@@ -116,7 +140,7 @@ export function activate(context: vscode.ExtensionContext) {
 			if (state && state.lastStatsData) {
 				state.sessionTracker = null;
 				initializeSessionTracker(state, state.lastStatsData);
-				rerenderFromCache();
+				rerenderFromCache(true);
 				state.log('Session statistics reset by user');
 			}
 		}),
@@ -137,6 +161,10 @@ export function activate(context: vscode.ExtensionContext) {
 			if (e.affectsConfiguration(`${CONFIG_NAMESPACE}.refreshInterval`)) {
 				startAutoRefresh();
 				return;
+			}
+
+			if ((e.affectsConfiguration(`${CONFIG_NAMESPACE}.statusBarAlignment`) || e.affectsConfiguration(`${CONFIG_NAMESPACE}.statusBarPriority`)) && state) {
+				state.recreateStatusBarItem();
 			}
 
 			if (!rerenderFromCache()) {
@@ -227,8 +255,8 @@ function isCacheValid(cache: CachedConnection | null): boolean {
 	return !!cache && (Date.now() - cache.timestamp) < CACHE_TTL_MS;
 }
 
-function rerenderFromCache(): boolean {
-	if (!state || state.refreshPromise) { return false; }
+function rerenderFromCache(force: boolean = false): boolean {
+	if (!state || (!force && state.refreshPromise)) { return false; }
 	if (!state.lastStatsData || !state.lastRefreshSucceeded) { return false; }
 	try {
 		const config = vscode.workspace.getConfiguration(CONFIG_NAMESPACE);

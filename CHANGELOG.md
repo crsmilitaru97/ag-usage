@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.4.4] - 2026-02-19
+
+- Added settings to customize the status bar item alignment (`ag-usage.statusBarAlignment`) and priority (`ag-usage.statusBarPriority`)
+- Updated the model names for Gemini and Claude
+
 ## [1.4.3] - 2026-02-05
 
 - Changed the way plan name is fetched from the API response
