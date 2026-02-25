@@ -18,10 +18,13 @@
 ---
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/crsmilitaru97/ag-usage/main/example.png" alt="AG Usage Preview" style="max-width: 100%; max-height: 300px; width: auto; height: auto; border-radius: 12px; border: 1px solid #30363d; box-shadow: 0 4px 10px rgba(0,0,0,0.25);">
+  <img src="https://raw.githubusercontent.com/crsmilitaru97/ag-usage/main/assets/dashboard.png" alt="AG Usage Dashboard" style="width: 38%; max-width: 300px; height: auto; border-radius: 12px; border: 1px solid #30363d; box-shadow: 0 4px 10px rgba(0,0,0,0.25); margin-right: 1.5%; vertical-align: middle;">
+  <img src="https://raw.githubusercontent.com/crsmilitaru97/ag-usage/main/assets/popup.png" alt="AG Usage Popup" style="width: 58%; max-width: 460px; height: auto; border-radius: 12px; border: 1px solid #30363d; box-shadow: 0 4px 10px rgba(0,0,0,0.25); vertical-align: middle;">
 </p>
 
 ## ✨ Features
+
+- **Webview panel**: Includes a dashboard showing your current quotas and a complete history log of all usage changes.
 
 - **Status bar integration**: Displays a status bar item showing the overall average usage percentage of your AI models.
 
@@ -74,11 +77,25 @@
 
 - `ag-usage.perWindowSession`: When enabled, session usage tracks only quota consumed while this window is focused. Usage from other windows is excluded. Default is `false`.
 
+- `ag-usage.dateFormatLocale`: Locale for date formatting (e.g., `'en-US'`, `'ro-RO'`, `'default'`). Default is `'default'`.
+
+- `ag-usage.enableHistoryTracking`: Enable tracking of quota usage history over time. Default is `true`.
+
+- `ag-usage.maxHistoryItems`: Maximum number of history items to persist per group. Default is `10`.
+
 ## ⚙️ Commands
 
 - `ag-usage.refresh`: Manually triggers a scan for the Antigravity process and updates usage statistics.
 
+- `ag-usage.openPanel`: Opens the AG Usage detailed webview panel that shows current quotas and history of quota changes.
+
 - `ag-usage.resetSession`: Manually triggers a reset of the session usage statistics (also accessible via the tooltip).
+
+## 🔒 Security & Privacy
+
+- **Local-only communication:** The extension only talks to your local Antigravity process over localhost.
+- **No third-party endpoints:** It does not send requests to external APIs, analytics services, or remote servers.
+- **Limited local persistence:** It stores quota history metadata locally in VS Code global state (category, quota delta, timestamps, reset time) to power the history panel.
 
 ## 📝 Notes
 

@@ -2,30 +2,34 @@ import * as vscode from 'vscode';
 import { CONFIG_NAMESPACE, DISPLAY_MODE_TO_CATEGORY, MAX_STATUS_TEXT_LENGTH, MS_PER_DAY, MS_PER_HOUR, MS_PER_MINUTE, SHORT_NAMES } from './constants';
 import { AbsoluteTimeFormat, QuotaGroup, ResetTimeDisplayMode, StatusBarDisplayMode } from './types';
 
-const monthFormatter = new Intl.DateTimeFormat(undefined, { month: 'short' });
-
-function formatAbsoluteTime(targetTime: number, format: AbsoluteTimeFormat, diffMs: number): string {
+function formatAbsoluteTime(targetTime: number, format: AbsoluteTimeFormat, diffMs: number, locale?: string): string {
   const date = new Date(targetTime);
   const includeDate = diffMs >= MS_PER_DAY;
 
-  let timeStr: string;
-  if (format === '12h') {
-    const hours = date.getHours();
-    const minutes = date.getMinutes();
-    const ampm = hours >= 12 ? 'PM' : 'AM';
-    const displayHours = hours % 12 || 12;
-    timeStr = `${displayHours}:${minutes.toString().padStart(2, '0')} ${ampm}`;
-  } else {
-    timeStr = `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
-  }
+  const options: Intl.DateTimeFormatOptions = {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: format === '12h'
+  };
 
   if (includeDate) {
-    const day = date.getDate();
-    const month = monthFormatter.format(date);
-    return `${day} ${month}, ${timeStr}`;
+    options.month = '2-digit';
+    options.day = '2-digit';
   }
 
-  return timeStr;
+  return new Intl.DateTimeFormat(locale, options).format(date);
+}
+
+export function formatFullTimestamp(ts: number, locale?: string): string {
+  const date = new Date(ts);
+  const options: Intl.DateTimeFormatOptions = {
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false
+  };
+  return new Intl.DateTimeFormat(locale, options).format(date);
 }
 
 export function formatRelativeTime(diffMs: number): string {
@@ -49,6 +53,8 @@ export function formatRemainingTimeSeparate(targetTime: number): { relativeText:
   const config = vscode.workspace.getConfiguration(CONFIG_NAMESPACE);
   const displayMode = config.get<ResetTimeDisplayMode>('resetTimeDisplay', 'both');
   const timeFormat = config.get<AbsoluteTimeFormat>('absoluteTimeFormat', '24h');
+  const localeSetting = config.get<string>('dateFormatLocale', 'default');
+  const locale = localeSetting === 'default' ? undefined : localeSetting;
 
   const relativeText = formatRelativeTime(diffMs);
 
@@ -56,7 +62,7 @@ export function formatRemainingTimeSeparate(targetTime: number): { relativeText:
     return { relativeText, absoluteText: null, diffMs };
   }
 
-  const absoluteText = formatAbsoluteTime(targetTime, timeFormat, diffMs);
+  const absoluteText = formatAbsoluteTime(targetTime, timeFormat, diffMs, locale);
 
   if (displayMode === 'absolute') {
     return { relativeText: absoluteText, absoluteText: null, diffMs };

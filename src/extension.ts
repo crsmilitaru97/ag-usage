@@ -11,6 +11,7 @@ import {
 	MAX_FAILED_REFRESH_DELAY_MS,
 	MIN_DISPLAY_DELAY_MS,
 	MS_PER_SECOND,
+	OPEN_PANEL_COMMAND,
 	REFRESH_COMMAND,
 	RESET_SESSION_COMMAND,
 	SETTINGS_COMMAND,
@@ -18,19 +19,25 @@ import {
 	USE_MOCK_DATA
 } from './constants';
 import { createErrorTooltip } from './formatter';
+import { QuotaHistory } from './history';
+import { UsageViewProvider } from './panel';
 import { renderStats } from './renderer';
 import { CachedConnection, SessionQuotaTracker, UsageStatistics } from './types';
 import { getErrorMessage } from './utils';
 
 async function loadMockUsageStatistics(): Promise<UsageStatistics> {
-	const testDataModule = await import('../dev/testData.json', { with: { type: 'json' } });
-	const testData = testDataModule.default;
+	const fs = await import('fs');
+	const path = await import('path');
+	const filePath = path.join(__dirname, '..', 'dev', 'testData.json');
+	const raw = fs.readFileSync(filePath, 'utf-8');
+	const testData = JSON.parse(raw);
 	const now = Date.now();
 	const groups: Record<string, { quota: number; resetTime: number | null }> = {};
 	for (const [name, data] of Object.entries(testData.usageStatistics.groups)) {
+		const entry = data as { quota: number; resetTimeOffsetMs?: number };
 		groups[name] = {
-			quota: data.quota,
-			resetTime: data.resetTimeOffsetMs ? now + data.resetTimeOffsetMs : null
+			quota: entry.quota,
+			resetTime: entry.resetTimeOffsetMs ? now + entry.resetTimeOffsetMs : null
 		};
 	}
 	return { groups, plan: testData.usageStatistics.plan };
@@ -50,8 +57,14 @@ class ExtensionState implements vscode.Disposable {
 	fullQuotaNotifiedCategories = new Set<string>();
 	lowQuotaNotifiedCategories = new Set<string>();
 	sessionTracker: SessionQuotaTracker | null = null;
+	quotaHistory: QuotaHistory;
+	usageViewProvider = new UsageViewProvider();
+	readonly context: vscode.ExtensionContext;
 
 	constructor(context: vscode.ExtensionContext) {
+		this.context = context;
+		const savedHistory = context.globalState.get<any[]>('quotaHistory', []);
+		this.quotaHistory = new QuotaHistory(savedHistory);
 		this.outputChannel = vscode.window.createOutputChannel(EXTENSION_TITLE);
 
 		this.isActive = true;
@@ -87,6 +100,7 @@ class ExtensionState implements vscode.Disposable {
 
 	dispose() {
 		this.statusBarItem?.dispose();
+		this.usageViewProvider.dispose();
 		this.isActive = false;
 		this.clearTimers();
 		this.cachedConnection = null;
@@ -97,6 +111,7 @@ class ExtensionState implements vscode.Disposable {
 		this.fullQuotaNotifiedCategories.clear();
 		this.lowQuotaNotifiedCategories.clear();
 		this.sessionTracker = null;
+		this.quotaHistory.clear();
 	}
 
 	clearTimers() {
@@ -134,8 +149,13 @@ export function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(state);
 
 	context.subscriptions.push(
+		vscode.window.registerWebviewViewProvider(UsageViewProvider.viewType, state.usageViewProvider)
+	);
+
+	context.subscriptions.push(
 		vscode.commands.registerCommand(REFRESH_COMMAND, () => refresh(true)),
 		vscode.commands.registerCommand(SETTINGS_COMMAND, () => vscode.commands.executeCommand('workbench.action.openSettings', CONFIG_NAMESPACE)),
+		vscode.commands.registerCommand(OPEN_PANEL_COMMAND, () => focusUsagePanel()),
 		vscode.commands.registerCommand(RESET_SESSION_COMMAND, () => {
 			if (state && state.lastStatsData) {
 				state.sessionTracker = null;
@@ -152,6 +172,22 @@ export function activate(context: vscode.ExtensionContext) {
 
 			if (e.affectsConfiguration(`${CONFIG_NAMESPACE}.trackSessionUsage`) && state.lastStatsData) {
 				initializeSessionTracker(state, state.lastStatsData);
+			}
+
+			if (e.affectsConfiguration(`${CONFIG_NAMESPACE}.enableHistoryTracking`) || e.affectsConfiguration(`${CONFIG_NAMESPACE}.maxHistoryItems`)) {
+				const isEnabled = vscode.workspace.getConfiguration(CONFIG_NAMESPACE).get<boolean>('enableHistoryTracking', true);
+				if (!isEnabled) {
+					state.quotaHistory.clear();
+				} else {
+					state.quotaHistory.prune();
+					if (state.lastStatsData && e.affectsConfiguration(`${CONFIG_NAMESPACE}.enableHistoryTracking`)) {
+						state.quotaHistory.recordSnapshot(state.lastStatsData.groups);
+					}
+				}
+				state.context.globalState.update('quotaHistory', state.quotaHistory.getRawEntries());
+				if (state.lastStatsData) {
+					state.usageViewProvider.update(state.lastStatsData, state.quotaHistory);
+				}
 			}
 
 			if ((e.affectsConfiguration(`${CONFIG_NAMESPACE}.notifyOnFullQuota`) || e.affectsConfiguration(`${CONFIG_NAMESPACE}.lowQuotaNotificationThreshold`)) && state.lastStatsData) {
@@ -202,6 +238,16 @@ export function activate(context: vscode.ExtensionContext) {
 	state.initialRefreshTimeout = setTimeout(() => {
 		startAutoRefresh(true);
 	}, INITIAL_DELAY_MS);
+}
+
+async function focusUsagePanel() {
+	try {
+		await vscode.commands.executeCommand('ag-usage.sidebarPanel.focus');
+	} catch (error) {
+		const message = getErrorMessage(error);
+		state?.log('Failed to open usage panel', error);
+		vscode.window.showErrorMessage(`Failed to open AG Usage Dashboard: ${message}`);
+	}
 }
 
 export async function deactivate() {
@@ -417,6 +463,7 @@ async function refresh(showRefreshing: boolean) {
 		currentState.lastStatsData = statsData;
 		currentState.lastRefreshSucceeded = true;
 		initializeSessionTracker(currentState, statsData);
+		currentState.quotaHistory.recordSnapshot(statsData.groups);
 		const config = vscode.workspace.getConfiguration(CONFIG_NAMESPACE);
 		const isPerWindow = config.get<boolean>('perWindowSession', false);
 		const result = renderStats(statsData, currentState.sessionTracker, isPerWindow);
@@ -424,6 +471,10 @@ async function refresh(showRefreshing: boolean) {
 		currentState.statusBarItem.tooltip = result.tooltip;
 		currentState.statusBarItem.color = undefined;
 		checkQuotaNotifications(currentState, statsData);
+
+		currentState.usageViewProvider.update(statsData, currentState.quotaHistory);
+		currentState.context.globalState.update('quotaHistory', currentState.quotaHistory.getRawEntries());
+
 		currentState.log(logMessage);
 	};
 

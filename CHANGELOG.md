@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.5.0] - 2026-02-25
+
+- Added a sidebar Dashboard panel to visualize detailed quota usage and history logs
+- Added the `ag-usage.enableHistoryTracking` setting to optionally disable quota history tracking
+- Added the `ag-usage.dateFormatLocale` setting to customize dates formatting
+
 ## [1.4.4] - 2026-02-19
 
 - Added settings to customize the status bar item alignment (`ag-usage.statusBarAlignment`) and priority (`ag-usage.statusBarPriority`)

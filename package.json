@@ -1,6 +1,6 @@
 {
   "name": "ag-usage",
-  "version": "1.4.4",
+  "version": "1.5.0",
   "displayName": "AG Usage",
   "description": "Track usage of Antigravity AI models",
   "author": "Cristian Militaru",
@@ -15,11 +15,18 @@
     "ai",
     "usage",
     "quota",
-    "monitor"
+    "monitor",
+    "gemini",
+    "tracker",
+    "google",
+    "claude",
+    "ag",
+    "tokens",
+    "dashboard"
   ],
-  "icon": "icon.png",
+  "icon": "assets/icon.png",
   "engines": {
-    "vscode": "^1.104.0"
+    "vscode": "^1.107.0"
   },
   "categories": [
     "AI",
@@ -31,6 +38,25 @@
   ],
   "main": "./out/extension.js",
   "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "ag-usage-sidebar",
+          "title": "AG Usage",
+          "icon": "assets/icon.png"
+        }
+      ]
+    },
+    "views": {
+      "ag-usage-sidebar": [
+        {
+          "type": "webview",
+          "id": "ag-usage.sidebarPanel",
+          "name": "Dashboard",
+          "icon": "assets/icon.png"
+        }
+      ]
+    },
     "commands": [
       {
         "command": "ag-usage.refresh",
@@ -46,6 +72,11 @@
         "command": "ag-usage.resetSession",
         "title": "Reset Session Usage",
         "icon": "$(history)"
+      },
+      {
+        "command": "ag-usage.openPanel",
+        "title": "Open AG Usage Panel",
+        "icon": "$(graph)"
       }
     ],
     "configuration": {
@@ -150,21 +181,47 @@
           "type": "number",
           "default": 100,
           "description": "Priority of the status bar item. Higher values are further to the left (for Right alignment) or further to the right (for Left alignment)."
+        },
+        "ag-usage.dateFormatLocale": {
+          "type": "string",
+          "default": "default",
+          "description": "Locale for date formatting (e.g., 'en-US', 'ro-RO', 'default')."
+        },
+        "ag-usage.maxHistoryItems": {
+          "type": "number",
+          "default": 10,
+          "minimum": 1,
+          "maximum": 20,
+          "description": "Maximum number of history items to persist per group."
+        },
+        "ag-usage.enableHistoryTracking": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable tracking of quota usage history over time."
         }
       }
+    },
+    "menus": {
+      "view/title": [
+        {
+          "command": "ag-usage.openSettings",
+          "when": "view == ag-usage.sidebarPanel",
+          "group": "navigation"
+        }
+      ]
     }
   },
   "scripts": {
     "vscode:prepublish": "npm run compile",
-    "compile": "esbuild ./src/extension.ts --bundle --outfile=out/extension.js --external:vscode --format=cjs --platform=node --sourcemap",
-    "watch": "esbuild ./src/extension.ts --bundle --outfile=out/extension.js --external:vscode --format=cjs --platform=node --sourcemap --watch",
+    "compile": "esbuild ./src/extension.ts --bundle --outfile=out/extension.js --external:vscode --format=cjs --platform=node",
+    "watch": "esbuild ./src/extension.ts --bundle --outfile=out/extension.js --external:vscode --format=cjs --platform=node --watch",
     "package": "npx vsce package",
     "publish:ovsx": "npx ovsx publish"
   },
   "devDependencies": {
-    "@types/node": "25.0.3",
-    "@types/vscode": "^1.104.0",
-    "esbuild": "^0.27.2",
+    "@types/node": "25.3.0",
+    "@types/vscode": "^1.107.0",
+    "esbuild": "^0.27.3",
     "typescript": "^5.9.3"
   }
 }

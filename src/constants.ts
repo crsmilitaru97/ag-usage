@@ -1,15 +1,16 @@
 export const USE_MOCK_DATA = process.env.AG_USAGE_MOCK_DATA === 'true';
-export const DEBUG_LOGGING = process.env.AG_USAGE_DEBUG_LOGGING === 'true';
 
 export const CONFIG_NAMESPACE = 'ag-usage';
 export const REFRESH_COMMAND = 'ag-usage.refresh';
 export const EXTENSION_TITLE = 'AG Usage';
 export const SETTINGS_COMMAND = 'ag-usage.openSettings';
 export const RESET_SESSION_COMMAND = 'ag-usage.resetSession';
+export const OPEN_PANEL_COMMAND = 'ag-usage.openPanel';
 export const INITIAL_DELAY_MS = 1500;
 export const MIN_DISPLAY_DELAY_MS = 300;
 export const STATUS_BAR_PRIORITY = 100;
 export const DEFAULT_REFRESH_INTERVAL = 60;
+export const SERVER_STARTUP_DELAY = 10;
 export const MS_PER_SECOND = 1000;
 export const MS_PER_MINUTE = 60000;
 export const MS_PER_HOUR = 3600000;

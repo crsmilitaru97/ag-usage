@@ -63,5 +63,3 @@ export interface ServerUserStatusResponse {
   plan?: string;
   planName?: string;
 }
-
-

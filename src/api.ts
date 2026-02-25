@@ -1,7 +1,6 @@
 import * as https from 'https';
 import {
   CATEGORY_NAMES,
-  DEBUG_LOGGING,
   IDE_INFO,
   MAX_PORT_VALIDATION_ATTEMPTS,
   MODEL_KEYWORDS,
@@ -135,10 +134,6 @@ export function makeRequest<T>(port: number, csrfToken: string, path: string, bo
 
     const payload = JSON.stringify(body);
 
-    if (DEBUG_LOGGING) {
-      console.log(`[AG Usage Debug] Request: POST https://${LOCALHOST}:${port}${path}`);
-      console.log(`[AG Usage Debug] Payload: ${payload}`);
-    }
     let cleanedUp = false;
     let request: ReturnType<typeof https.request> | null = null;
 
@@ -190,10 +185,6 @@ export function makeRequest<T>(port: number, csrfToken: string, path: string, bo
         cleanup();
         const statusCode = response.statusCode ?? 0;
 
-        if (DEBUG_LOGGING) {
-          console.log(`[AG Usage Debug] Response Status: ${statusCode}`);
-          console.log(`[AG Usage Debug] Response Body: ${responseData}`);
-        }
         if (statusCode < 200 || statusCode >= 300) {
           return reject(new Error(`HTTP request failed with status ${statusCode}`));
         }

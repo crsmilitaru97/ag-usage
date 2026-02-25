@@ -15,5 +15,6 @@ tsconfig.json
 npm-debug.log
 yarn-error.log
 package-lock.json
-example.png
+assets/popup.png
+assets/dashboard.png
 dev
