@@ -6,6 +6,7 @@ export const EXTENSION_TITLE = 'AG Usage';
 export const SETTINGS_COMMAND = 'ag-usage.openSettings';
 export const RESET_SESSION_COMMAND = 'ag-usage.resetSession';
 export const OPEN_PANEL_COMMAND = 'ag-usage.openPanel';
+export const EXPORT_HISTORY_COMMAND = 'ag-usage.exportHistory';
 export const INITIAL_DELAY_MS = 1500;
 export const MIN_DISPLAY_DELAY_MS = 300;
 export const STATUS_BAR_PRIORITY = 100;

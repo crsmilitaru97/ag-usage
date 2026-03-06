@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.5.1] - 2026-03-07
+
+- Redesigned progress bars into five 20% segments matching the official Antigravity quota display
+- Redesigned dashboard and history log with a more compact, organized, and modern look
+- Added "Clear History" trash icon, "Export to JSON" button and "Refresh" action in dashboard
+
 ## [1.5.0] - 2026-02-25
 
 - Added a sidebar Dashboard panel to visualize detailed quota usage and history logs

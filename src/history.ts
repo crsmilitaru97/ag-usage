@@ -45,9 +45,14 @@ export class QuotaHistory {
     this.previousQuotas = {};
   }
 
+  clearCategory(category: string): void {
+    this.entries = this.entries.filter(e => e.category !== category);
+    delete this.previousQuotas[category];
+  }
+
   public prune() {
     const config = vscode.workspace.getConfiguration(CONFIG_NAMESPACE);
-    const maxHistoryItems = config.get<number>('maxHistoryItems', 10);
+    const maxHistoryItems = config.get<number>('maxHistoryItems', 15);
     const enableHistoryTracking = config.get<boolean>('enableHistoryTracking', true);
 
     if (!enableHistoryTracking) {

@@ -7,11 +7,12 @@
 </p>
 
 <p align="center">
-  <a href="https://open-vsx.org/extension/crsx/ag-usage"><img src="https://img.shields.io/open-vsx/v/crsx/ag-usage?logo=open-vsx&logoColor=white" alt="Open VSX Version"></a>
+  <a href="https://open-vsx.org/extension/crsx/ag-usage"><img src="https://img.shields.io/open-vsx/v/crsx/ag-usage?logo=open-vsx&label=Open%20VSX&logoColor=white" alt="Open VSX Version"></a>
   <a href="https://open-vsx.org/extension/crsx/ag-usage"><img src="https://img.shields.io/open-vsx/dt/crsx/ag-usage" alt="Open VSX Downloads"></a>
+  <br>
   <a href="https://github.com/crsmilitaru97/ag-usage"><img src="https://img.shields.io/badge/GitHub-Repository-181717?logo=github&logoColor=white" alt="GitHub"></a>
   <a href="https://github.com/crsmilitaru97/ag-usage/stargazers"><img src="https://img.shields.io/github/stars/crsmilitaru97/ag-usage" alt="GitHub Stars"></a>
-  <a href="https://github.com/crsmilitaru97/ag-usage/blob/main/LICENSE"><img src="https://img.shields.io/github/license/crsmilitaru97/ag-usage" alt="License"></a>
+  <a href="https://github.com/crsmilitaru97/ag-usage/blob/main/LICENSE"><img src="https://img.shields.io/github/license/crsmilitaru97/ag-usage?style=flat" alt="License"></a>
   <a href="https://www.paypal.com/donate?hosted_button_id=MZQS5CZ68NGEW"><img src="https://img.shields.io/badge/Donate-PayPal-00457C?logo=paypal&logoColor=white" alt="Donate"></a>
 </p>
 
@@ -81,15 +82,19 @@
 
 - `ag-usage.enableHistoryTracking`: Enable tracking of quota usage history over time. Default is `true`.
 
-- `ag-usage.maxHistoryItems`: Maximum number of history items to persist per group. Default is `10`.
+- `ag-usage.maxHistoryItems`: Maximum number of history items to persist per group. Default is `15`.
 
 ## ⚙️ Commands
 
 - `ag-usage.refresh`: Manually triggers a scan for the Antigravity process and updates usage statistics.
 
+- `ag-usage.openSettings`: Opens the AG Usage configuration page.
+
 - `ag-usage.openPanel`: Opens the AG Usage detailed webview panel that shows current quotas and history of quota changes.
 
 - `ag-usage.resetSession`: Manually triggers a reset of the session usage statistics (also accessible via the tooltip).
+
+- `ag-usage.exportHistory`: Export the metadata history log to a JSON file (available in the dashboard title bar).
 
 ## 🔒 Security & Privacy
 

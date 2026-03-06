@@ -12,6 +12,7 @@ import {
 	MIN_DISPLAY_DELAY_MS,
 	MS_PER_SECOND,
 	OPEN_PANEL_COMMAND,
+	EXPORT_HISTORY_COMMAND,
 	REFRESH_COMMAND,
 	RESET_SESSION_COMMAND,
 	SETTINGS_COMMAND,
@@ -156,6 +157,36 @@ export function activate(context: vscode.ExtensionContext) {
 		vscode.commands.registerCommand(REFRESH_COMMAND, () => refresh(true)),
 		vscode.commands.registerCommand(SETTINGS_COMMAND, () => vscode.commands.executeCommand('workbench.action.openSettings', CONFIG_NAMESPACE)),
 		vscode.commands.registerCommand(OPEN_PANEL_COMMAND, () => focusUsagePanel()),
+		vscode.commands.registerCommand(EXPORT_HISTORY_COMMAND, async () => {
+			if (!state) return;
+			const history = state.quotaHistory.getRawEntries();
+			if (history.length === 0) {
+				vscode.window.showInformationMessage('No history data to export.');
+				return;
+			}
+			const uri = await vscode.window.showSaveDialog({
+				filters: { 'JSON Files': ['json'] },
+				defaultUri: vscode.Uri.file('ag-usage-history.json'),
+				title: 'Export AG Usage History'
+			});
+			if (uri) {
+				const fs = await import('fs');
+				const formattedHistory = history.map(entry => ({
+					...entry,
+					delta: Math.round(entry.delta * 10) / 10,
+					date: new Date(entry.timestamp).toLocaleString(),
+					resetDate: entry.resetTime ? new Date(entry.resetTime).toLocaleString() : null
+				}));
+				const data = JSON.stringify(formattedHistory, null, 2);
+				try {
+					await fs.promises.writeFile(uri.fsPath, data, 'utf-8');
+					vscode.window.showInformationMessage('AG Usage history exported successfully.');
+				} catch (error) {
+					state.log('Failed to export history', error);
+					vscode.window.showErrorMessage(`Failed to export history: ${getErrorMessage(error)}`);
+				}
+			}
+		}),
 		vscode.commands.registerCommand(RESET_SESSION_COMMAND, () => {
 			if (state && state.lastStatsData) {
 				state.sessionTracker = null;

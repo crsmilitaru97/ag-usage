@@ -173,11 +173,28 @@ function buildSessionInfoSvg(centerX: number, y: number, consumed: number, elaps
 
 function buildProgressBarSvg(centerX: number, textYPercent: number, percentage: number, barColor: string, barY: number, barWidth: number, barHeight: number, barRadius: number, barBackground: string): string {
   const barX = centerX - (barWidth / 2);
-  const filledWidth = ((percentage / 100) * barWidth).toFixed(1);
-  return `
-    <text x="${centerX}" y="${textYPercent}" fill="${barColor}" ${LAYOUT.textStyle} font-size="18" font-weight="700">${percentage}%</text>
-    <rect x="${barX}" y="${barY}" rx="${barRadius}" width="${barWidth}" height="${barHeight}" fill="${barBackground}"/>
-    <rect x="${barX}" y="${barY}" rx="${barRadius}" width="${filledWidth}" height="${barHeight}" fill="${barColor}"/>`;
+  const segments = 5;
+  const gap = 2;
+  const segmentWidth = (barWidth - (gap * (segments - 1))) / segments;
+
+  const elements = [
+    `<text x="${centerX}" y="${textYPercent}" fill="${barColor}" ${LAYOUT.textStyle} font-size="18" font-weight="700">${percentage}%</text>`
+  ];
+
+  for (let i = 0; i < segments; i++) {
+    const segX = (barX + i * (segmentWidth + gap)).toFixed(1);
+    const sw = segmentWidth.toFixed(1);
+    elements.push(`<rect x="${segX}" y="${barY}" rx="${barRadius}" width="${sw}" height="${barHeight}" fill="${barBackground}"/>`);
+
+    const startPct = i * 20;
+    const fillPct = Math.max(0, Math.min(100, (percentage - startPct) * 5));
+    if (fillPct > 0) {
+      const fillWidth = ((fillPct / 100) * segmentWidth).toFixed(1);
+      elements.push(`<rect x="${segX}" y="${barY}" rx="${barRadius}" width="${fillWidth}" height="${barHeight}" fill="${barColor}"/>`);
+    }
+  }
+
+  return '\n    ' + elements.join('\n    ');
 }
 
 function buildSeparatorSvg(centerX: number, y: number, color: string): string {

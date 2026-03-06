@@ -20,11 +20,20 @@ export class UsageViewProvider implements vscode.WebviewViewProvider {
 		this.view = webviewView;
 
 		webviewView.webview.options = {
-			enableScripts: false,
+			enableScripts: true,
 		};
 
 		webviewView.onDidDispose(() => {
 			this.view = undefined;
+		}, null, this.disposables);
+
+		webviewView.webview.onDidReceiveMessage((message) => {
+			if (message.command === 'clearHistory') {
+				if (this.quotaHistory) {
+					this.quotaHistory.clearCategory(message.category);
+					this.updateView();
+				}
+			}
 		}, null, this.disposables);
 
 		this.updateView();
@@ -83,47 +92,83 @@ function formatDelta(delta: number): string {
 	return pct > 0 ? `+${pct}%` : `${pct}%`;
 }
 
-function buildHistoryItemHtml(entry: QuotaHistoryEntry, locale?: string): string {
+function buildHistoryItemHtml(entry: QuotaHistoryEntry, previousEntry?: QuotaHistoryEntry, locale?: string): string {
 	const deltaClass = getDeltaClass(entry.delta);
-	const detailsHtml = entry.isInitial
-		? `<div class="history-item-change">
+	let detailsHtml: string;
+	if (entry.isInitial) {
+		detailsHtml = `<div class="history-item-change">
 				<span class="cell-value">Started at ${escapeHtml(formatPercent(entry.currentQuota))}</span>
-			</div>`
-		: `<div class="history-item-change">
+			</div>`;
+	} else if (entry.currentQuota >= 1 && entry.previousQuota < 1) {
+		detailsHtml = `<div class="history-item-change">
+				<span class="cell-delta delta-positive">✓ Fully restored</span>
+			</div>`;
+	} else {
+		detailsHtml = `<div class="history-item-change">
 				<span class="cell-value">${escapeHtml(formatPercent(entry.previousQuota))} → ${escapeHtml(formatPercent(entry.currentQuota))}</span>
 				<span class="cell-delta ${deltaClass}">${escapeHtml(formatDelta(entry.delta))}</span>
 			</div>`;
+	}
+
+	let resetText = formatResetTime(entry.resetTime, locale);
+	if (entry.resetTime !== null && entry.resetTime > entry.timestamp) {
+		const diffMs = entry.resetTime - entry.timestamp;
+		const days = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+		const hours = Math.floor((diffMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+		
+		let diffStr = '';
+		if (days > 0 && hours > 0) {
+			diffStr = `${days} day${days > 1 ? 's' : ''} and ${hours} hour${hours > 1 ? 's' : ''}`;
+		} else if (days > 0) {
+			diffStr = `${days} day${days > 1 ? 's' : ''}`;
+		} else if (hours > 0) {
+			diffStr = `${hours} hour${hours > 1 ? 's' : ''}`;
+		} else {
+			diffStr = '<1 hour';
+		}
+		
+		resetText += ` (in ${diffStr})`;
+	}
+
+	const tsDate = new Date(entry.timestamp);
+	const dateStr = new Intl.DateTimeFormat(locale, { month: '2-digit', day: '2-digit' }).format(tsDate);
+	const timeStr = new Intl.DateTimeFormat(locale, { hour: '2-digit', minute: '2-digit', hour12: false }).format(tsDate);
+
+	let lapseHtml = '';
+	if (previousEntry !== undefined) {
+		const diffMs = Math.max(0, entry.timestamp - previousEntry.timestamp);
+		lapseHtml = `<div class="history-lapsed">↑ ${escapeHtml(formatRelativeTime(diffMs))}</div>`;
+	}
 
 	return `
-		<div class="history-item">
-			<div class="history-item-details">
-				${detailsHtml}
+		<div class="history-row">
+			<div class="history-date">
+				<span class="history-date-day">${escapeHtml(dateStr)}</span>
+				<span class="history-date-time">${escapeHtml(timeStr)}</span>
+				${lapseHtml}
 			</div>
-			<div class="history-item-header">
-				<div class="cell-time">On: ${escapeHtml(formatFullTimestamp(entry.timestamp, locale))}</div>
-				<div class="cell-reset">Reset: ${escapeHtml(formatResetTime(entry.resetTime, locale))}</div>
+			<div class="history-content">
+				${detailsHtml}
+				<div class="cell-reset">Reset: ${escapeHtml(resetText)}</div>
 			</div>
 		</div>`;
 }
 
-function buildHistorySectionHtml(categoryEntries: QuotaHistoryEntry[], locale?: string): string {
+function buildHistorySectionHtml(category: string, categoryEntries: QuotaHistoryEntry[], locale?: string): string {
 	if (categoryEntries.length === 0) { return ''; }
 
 	return `
 		<details class="card-history-details">
 			<summary class="card-history-summary">
-				History (${categoryEntries.length})
+				<span style="display: flex; align-items: center; gap: 6px;">History (${categoryEntries.length})</span>
+				<span class="clear-history-icon" data-category="${escapeHtml(category)}" title="Clear History" onclick="clearCatHistory(event, this)">
+					<svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path fill-rule="evenodd" clip-rule="evenodd" d="M10 3h3v1h-1v9l-1 1H4l-1-1V4H2V3h3V2a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1v1zM6 2v1h3V2H6zm4 11V4H5v9h5z" /></svg>
+				</span>
 			</summary>
 			<div class="history-list">
 				${categoryEntries.map((entry, index) => {
-		const itemHtml = buildHistoryItemHtml(entry, locale);
 		const previousEntry = categoryEntries[index + 1];
-		if (previousEntry !== undefined) {
-			const diffMs = Math.max(0, entry.timestamp - previousEntry.timestamp);
-			const lapsedHtml = `<div class="history-lapsed">↑ ${escapeHtml(formatRelativeTime(diffMs))} later</div>`;
-			return itemHtml + lapsedHtml;
-		}
-		return itemHtml;
+		return buildHistoryItemHtml(entry, previousEntry, locale);
 	}).join('')}
 			</div>
 		</details>`;
@@ -142,7 +187,14 @@ function buildCardHeaderHtml(category: string, group: QuotaGroup | undefined, lo
 
 	const pct = Math.round(Math.max(0, Math.min(1, group.quota)) * 100);
 	const colorClass = getBarColorClass(group.quota);
-	const resetStr = group.resetTime ? formatFullTimestamp(group.resetTime, locale) : 'Not started';
+	let resetValueHtml = 'Not started';
+	if (group.resetTime) {
+		resetValueHtml = escapeHtml(formatFullTimestamp(group.resetTime, locale));
+		const diffMs = group.resetTime - Date.now();
+		if (diffMs > 0) {
+			resetValueHtml += ` <span class="reset-interval">(${escapeHtml(formatRelativeTime(diffMs))})</span>`;
+		}
+	}
 
 	return `
 		<div class="quota-card-header">
@@ -152,11 +204,15 @@ function buildCardHeaderHtml(category: string, group: QuotaGroup | undefined, lo
 			<div class="quota-value ${colorClass}">${pct}%</div>
 		</div>
 		<div class="quota-bar-track">
-			<div class="quota-bar-fill ${colorClass} w-${pct}"></div>
+			${Array.from({ length: 5 }).map((_, i) => {
+		const startPct = i * 20;
+		const fillPct = Math.max(0, Math.min(100, (pct - startPct) * 5));
+		return `<div class="quota-bar-segment-bg"><div class="quota-bar-segment-fill ${colorClass} w-${fillPct}"></div></div>`;
+	}).join('')}
 		</div>
 		<div class="quota-reset">
 			<span class="reset-label">Resets at</span>
-			<span class="reset-value">${escapeHtml(resetStr)}</span>
+			<span class="reset-value">${resetValueHtml}</span>
 		</div>`;
 }
 
@@ -189,7 +245,7 @@ function buildQuotaCards(statsData: UsageStatistics | null, history: QuotaHistor
 		const categoryEntries = (grouped.get(category) || []).slice().reverse();
 
 		const headerHtml = buildCardHeaderHtml(category, group, locale);
-		const historyHtml = buildHistorySectionHtml(categoryEntries, locale);
+		const historyHtml = buildHistorySectionHtml(category, categoryEntries, locale);
 
 		return `
 			<div class="quota-card">
@@ -262,6 +318,7 @@ body {
 	display: flex;
 	flex-direction: column;
 	overflow: hidden;
+	user-select: none;
 }
 
 .section {
@@ -313,17 +370,11 @@ body {
 	border: 1px solid var(--card-border);
 	border-radius: var(--radius-lg);
 	padding: 16px;
-	display: flex;
-	flex-direction: column;
-	min-height: 0;
+	flex-shrink: 0;
 }
 
 .plan-card {
 	padding: 12px 16px;
-}
-
-.quota-card:has(details[open]) {
-	flex: 1;
 }
 
 .quota-card-header {
@@ -388,22 +439,28 @@ body {
 .quota-value.bar-error { color: var(--error); }
 
 .quota-bar-track {
+	display: flex;
+	gap: 2px;
 	height: 6px;
-	background: var(--table-border);
-	border-radius: 3px;
-	overflow: hidden;
 	margin-bottom: 14px;
 }
 
-.quota-bar-fill {
+.quota-bar-segment-bg {
+	flex: 1;
+	background: var(--table-border);
+	border-radius: 3px;
+	overflow: hidden;
+}
+
+.quota-bar-segment-fill {
 	height: 100%;
 	border-radius: 3px;
 	transition: width 0.3s ease;
 }
 
-.quota-bar-fill.bar-success { background: var(--success); }
-.quota-bar-fill.bar-warning { background: var(--warning); }
-.quota-bar-fill.bar-error { background: var(--error); }
+.quota-bar-segment-fill.bar-success { background: var(--success); }
+.quota-bar-segment-fill.bar-warning { background: var(--warning); }
+.quota-bar-segment-fill.bar-error { background: var(--error); }
 
 .quota-reset {
 	display: flex;
@@ -422,31 +479,25 @@ body {
 	font-variant-numeric: tabular-nums;
 }
 
+.reset-interval {
+	color: var(--text-muted);
+	opacity: 0.8;
+}
+
 .history-list {
 	display: flex;
 	flex-direction: column;
-	gap: 2px;
+	gap: 4px;
 	margin-top: 8px;
 	padding-right: 4px;
-}
-
-.history-lapsed {
-	text-align: center;
-	font-size: 11px;
-	color: var(--text-muted);
-	padding: 2px 0;
-	font-style: italic;
+	max-height: 300px;
+	overflow-y: auto;
+	overflow-x: hidden;
 }
 
 .card-history-details {
 	margin-top: 14px;
 	border-top: 1px solid var(--table-border);
-}
-
-.card-history-details[open] {
-	flex: 1;
-	min-height: 0;
-	overflow-y: auto;
 }
 
 .card-history-summary {
@@ -458,6 +509,7 @@ body {
 	color: var(--text-secondary);
 	display: flex;
 	align-items: center;
+	justify-content: space-between;
 	gap: 6px;
 	list-style: none;
 	flex-shrink: 0;
@@ -483,38 +535,85 @@ body {
 	transform: rotate(90deg);
 }
 
-.history-item {
+.card-history-details[open] .history-list {
+	animation: slideDown 0.2s ease-out forwards;
+}
+
+@keyframes slideDown {
+	0% { opacity: 0; transform: translateY(-4px); }
+	100% { opacity: 1; transform: translateY(0); }
+}
+
+.clear-history-icon {
+	opacity: 0.6;
+	cursor: pointer;
+	padding: 2px;
+	border-radius: 4px;
+	display: flex;
+	align-items: center;
+}
+
+.clear-history-icon:hover {
+	opacity: 1;
+	background: var(--table-row-hover);
+	color: var(--error);
+}
+
+.history-row {
+	display: flex;
 	background: var(--card-bg);
 	border: 1px solid var(--card-border);
 	border-radius: var(--radius-sm);
-	padding: 10px;
+	overflow: hidden;
+	flex-shrink: 0;
+}
+
+.history-date {
+	padding: 6px 10px;
 	display: flex;
 	flex-direction: column;
-	gap: 6px;
+	align-items: center;
+	justify-content: center;
+	gap: 1px;
+	border-right: 1px solid var(--card-border);
+	width: 65px;
+	flex-shrink: 0;
 }
 
-.history-item-header {
-	display: flex;
-	justify-content: center;
-	gap: 14px;
-	align-items: center;
+.history-date-day {
+	font-size: 11px;
+	font-weight: 600;
+	color: var(--text-secondary);
+	font-variant-numeric: tabular-nums;
 }
 
-.history-item-details {
+.history-date-time {
+	font-size: 10px;
+	color: var(--text-muted);
+	font-variant-numeric: tabular-nums;
+}
+
+.history-lapsed {
+	font-size: 9px;
+	color: var(--text-muted);
+	margin-top: 2px;
+	opacity: 0.7;
+}
+
+.history-content {
+	padding: 6px 10px;
 	display: flex;
+	flex-direction: column;
 	justify-content: center;
-	align-items: center;
+	gap: 2px;
+	flex: 1;
+	min-width: 0;
 }
 
 .history-item-change {
 	display: flex;
-	gap: 8px;
+	gap: 6px;
 	align-items: center;
-}
-
-.cell-time {
-	color: var(--text-muted);
-	font-size: 11px;
 }
 
 .cell-model {
@@ -531,7 +630,7 @@ body {
 
 .cell-delta {
 	font-weight: 600;
-	font-size: 12px;
+	font-size: 11px;
 }
 
 .delta-positive { color: var(--success); }
@@ -539,7 +638,7 @@ body {
 
 .cell-reset {
 	color: var(--text-muted);
-	font-size: 11px;
+	font-size: 10px;
 }
 
 .empty-state,
@@ -548,6 +647,14 @@ body {
 	color: var(--text-muted);
 	padding: 32px 16px;
 	font-style: italic;
+}
+
+.panel-footer {
+	padding: 8px 0 0;
+	font-size: 10px;
+	color: var(--text-muted);
+	text-align: center;
+	flex-shrink: 0;
 }
 
 ${WIDTH_CLASSES}
@@ -588,6 +695,43 @@ ${getPanelStyles()}
 	<div class="section flex-grow">
 		<div class="quota-grid">${quotaCards}</div>
 	</div>
+	<div class="panel-footer" id="lastUpdated">Updated just now</div>
+<script>
+const vscode = acquireVsCodeApi();
+const updatedAt = ${Date.now()};
+function updateFooter() {
+	const diff = Date.now() - updatedAt;
+	const sec = Math.floor(diff / 1000);
+	const el = document.getElementById('lastUpdated');
+	if (!el) return;
+	if (sec < 10) el.textContent = 'Updated just now';
+	else if (sec < 60) el.textContent = 'Updated ' + sec + 's ago';
+	else {
+		const min = Math.floor(sec / 60);
+		el.textContent = 'Updated ' + min + 'm ago';
+	}
+}
+setInterval(updateFooter, 10000);
+
+function clearCatHistory(event, el) {
+	event.preventDefault();
+	event.stopPropagation();
+	vscode.postMessage({
+		command: 'clearHistory',
+		category: el.getAttribute('data-category')
+	});
+}
+
+document.querySelectorAll('.card-history-details').forEach(details => {
+	details.addEventListener('toggle', () => {
+		if (details.open) {
+			document.querySelectorAll('.card-history-details').forEach(other => {
+				if (other !== details) other.open = false;
+			});
+		}
+	});
+});
+</script>
 </body>
 </html>`;
 }

@@ -1,6 +1,6 @@
 {
   "name": "ag-usage",
-  "version": "1.5.0",
+  "version": "1.5.1",
   "displayName": "AG Usage",
   "description": "Track usage of Antigravity AI models",
   "author": "Cristian Militaru",
@@ -77,6 +77,11 @@
         "command": "ag-usage.openPanel",
         "title": "Open AG Usage Panel",
         "icon": "$(graph)"
+      },
+      {
+        "command": "ag-usage.exportHistory",
+        "title": "Export History to JSON",
+        "icon": "$(save)"
       }
     ],
     "configuration": {
@@ -189,9 +194,9 @@
         },
         "ag-usage.maxHistoryItems": {
           "type": "number",
-          "default": 10,
+          "default": 15,
           "minimum": 1,
-          "maximum": 20,
+          "maximum": 30,
           "description": "Maximum number of history items to persist per group."
         },
         "ag-usage.enableHistoryTracking": {
@@ -204,9 +209,19 @@
     "menus": {
       "view/title": [
         {
+          "command": "ag-usage.exportHistory",
+          "when": "view == ag-usage.sidebarPanel",
+          "group": "navigation@1"
+        },
+        {
+          "command": "ag-usage.refresh",
+          "when": "view == ag-usage.sidebarPanel",
+          "group": "navigation@2"
+        },
+        {
           "command": "ag-usage.openSettings",
           "when": "view == ag-usage.sidebarPanel",
-          "group": "navigation"
+          "group": "navigation@3"
         }
       ]
     }
