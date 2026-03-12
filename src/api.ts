@@ -261,5 +261,12 @@ export async function fetchStats(port: number, csrfToken: string): Promise<Usage
   const plan = response.userStatus?.planStatus?.planInfo?.planName;
   const planName = response.userStatus?.userTier?.name;
 
-  return { groups, plan, planName };
+  const rawCredit = response.userStatus?.userTier?.availableCredits?.[0];
+  const credits = rawCredit ? {
+    creditType: rawCredit.creditType ?? 'GOOGLE_ONE_AI',
+    creditAmount: parseInt(rawCredit.creditAmount ?? '0', 10) || 0,
+    minimumCreditAmountForUsage: parseInt(rawCredit.minimumCreditAmountForUsage ?? '0', 10) || 0,
+  } : undefined;
+
+  return { groups, plan, planName, credits };
 }

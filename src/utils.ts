@@ -1,5 +1,5 @@
 import { spawn } from 'child_process';
-import { MAX_PID_32BIT_SIGNED, MAX_PORT, MIN_PORT } from './constants';
+import { MAX_PID_32BIT_SIGNED, MAX_PORT, MIN_PORT, MS_PER_DAY, MS_PER_HOUR, MS_PER_MINUTE, SERVER_STARTUP_DELAY } from './constants';
 
 export const MAX_BUFFER_SIZE = 1024 * 1024;
 
@@ -66,4 +66,11 @@ export function delay(ms: number): Promise<void> {
 
 export function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+export function isNotStartedQuota(percentage: number, resetMs: number): boolean {
+  const toleranceMs = SERVER_STARTUP_DELAY * MS_PER_MINUTE;
+  const nearFiveHours = Math.abs(resetMs - 5 * MS_PER_HOUR) < toleranceMs;
+  const nearSevenDays = Math.abs(resetMs - 7 * MS_PER_DAY) < toleranceMs;
+  return percentage >= 100 && (nearFiveHours || nearSevenDays);
 }

@@ -1,7 +1,8 @@
 import * as vscode from 'vscode';
-import { CATEGORY_ORDER, COLOR_THRESHOLDS, EXTENSION_TITLE, MS_PER_DAY, MS_PER_HOUR, MS_PER_MINUTE, OPEN_PANEL_COMMAND, RESET_SESSION_COMMAND, SERVER_STARTUP_DELAY, SETTINGS_COMMAND, SVG_CONFIG, THEME_COLORS } from './constants';
+import { CATEGORY_ORDER, COLOR_THRESHOLDS, EXTENSION_TITLE, MS_PER_HOUR, MS_PER_MINUTE, OPEN_PANEL_COMMAND, RESET_SESSION_COMMAND, SETTINGS_COMMAND, SVG_CONFIG, THEME_COLORS } from './constants';
 import { formatRelativeTime, formatRemainingTimeSeparate, formatStatusBarText } from './formatter';
 import { QuotaGroup, SessionQuotaTracker, UsageStatistics } from './types';
+import { isNotStartedQuota } from './utils';
 
 const PLAN = {
   FREE: 'free',
@@ -242,8 +243,7 @@ function buildCategorySvg(options: CategorySvgOptions): string {
     }
   }
 
-  const maxResetMs = plan === PLAN.FREE ? 7 * MS_PER_DAY : 5 * MS_PER_HOUR;
-  if (percentage >= 100 && resetMs + SERVER_STARTUP_DELAY * MS_PER_MINUTE > maxResetMs) {
+  if (isNotStartedQuota(percentage, resetMs)) {
     svg += `<text x="${centerX}" y="${textYTime}" fill="${colors.text}" fill-opacity="${OPACITY.medium}" ${LAYOUT.textStyle} font-size="12" font-weight="500">Not started</text>`;
   } else if (typeof group.resetTime === 'number') {
     svg += buildTimeLeftSvg(centerX, textYTime, formatRemainingTimeSeparate(group.resetTime), colors, isWeeklyQuotaTriggered, false);
@@ -327,7 +327,7 @@ export function renderStats(data: UsageStatistics, sessionTracker: SessionQuotaT
 
   const tooltip = new vscode.MarkdownString();
   tooltip.appendMarkdown(`<img src="data:image/svg+xml;base64,${Buffer.from(svgContent).toString('base64')}"/>\n\n`);
-  tooltip.appendMarkdown(`<div align="center"><strong>${planDisplay}</strong> · <a href="command:${OPEN_PANEL_COMMAND}">Dashboard</a> · <a href="command:${SETTINGS_COMMAND}">Settings</a> · <a href="command:${RESET_SESSION_COMMAND}">Reset Session</a></div>`);
+  tooltip.appendMarkdown(`<div align="center"><strong>${planDisplay}</strong> · <a href="command:${OPEN_PANEL_COMMAND}">Dashboard</a> · <a href="command:ag-usage.openModelsSettings">Models</a> · <a href="command:${SETTINGS_COMMAND}">Settings</a> · <a href="command:${RESET_SESSION_COMMAND}">Reset Session</a></div>`);
   tooltip.isTrusted = true;
   tooltip.supportHtml = true;
 

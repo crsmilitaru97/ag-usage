@@ -25,7 +25,7 @@
 
 ## ✨ Features
 
-- **Webview panel**: Includes a dashboard showing your current quotas and a complete history log of all usage changes.
+- **Webview panel**: Includes a dashboard showing your current quotas, Extra Credits, a complete history log of all usage changes, and a button to open the official Models page.
 
 - **Status bar integration**: Displays a status bar item showing the overall average usage percentage of your AI models.
 

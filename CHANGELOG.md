@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.5.2] - 2026-03-13
+
+- Fixed "Not started" detection for 7-day reset times
+- Adjusted panel colors to better match the Antigravity theme
+- Added a button in the dashboard and tooltip to open the official Models page
+- Added an Extra Credits display to the dashboard
+- Added sparkline charts to the dashboard history sections
+
 ## [1.5.1] - 2026-03-07
 
 - Redesigned progress bars into five 20% segments matching the official Antigravity quota display

@@ -9,10 +9,17 @@ export interface CachedConnection {
   timestamp: number;
 }
 
+export interface CreditInfo {
+  creditType: string;
+  creditAmount: number;
+  minimumCreditAmountForUsage: number;
+}
+
 export interface UsageStatistics {
   groups: Record<string, QuotaGroup>;
   plan?: string;
   planName?: string;
+  credits?: CreditInfo;
 }
 
 export interface SessionQuotaTracker {
@@ -56,6 +63,11 @@ export interface ServerUserStatusResponse {
     userTier?: {
       name: string;
       id: string;
+      availableCredits?: {
+        creditType?: string;
+        creditAmount?: string;
+        minimumCreditAmountForUsage?: string;
+      }[];
     };
     plan?: string;
     planName?: string;

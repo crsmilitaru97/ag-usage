@@ -43,8 +43,8 @@ export function formatRelativeTime(diffMs: number): string {
   return minutes > 0 ? `${minutes}m` : '<1m';
 }
 
-export function formatRemainingTimeSeparate(targetTime: number): { relativeText: string; absoluteText: string | null; diffMs: number } {
-  const diffMs = targetTime - Date.now();
+export function formatRemainingTimeSeparate(targetTime: number, now: number = Date.now()): { relativeText: string; absoluteText: string | null; diffMs: number } {
+  const diffMs = targetTime - now;
 
   if (diffMs <= 0) {
     return { relativeText: 'Soon', absoluteText: null, diffMs: 0 };

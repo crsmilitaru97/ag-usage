@@ -1,5 +1,6 @@
 out
 node_modules
+src/*.js
 .vscode-test
 *.vsix
 .DS_Store

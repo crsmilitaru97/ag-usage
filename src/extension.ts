@@ -5,6 +5,7 @@ import {
 	CATEGORY_ORDER,
 	CONFIG_NAMESPACE,
 	DEFAULT_REFRESH_INTERVAL,
+	EXPORT_HISTORY_COMMAND,
 	EXTENSION_TITLE,
 	FAILED_REFRESH_DELAY_MS,
 	INITIAL_DELAY_MS,
@@ -12,7 +13,6 @@ import {
 	MIN_DISPLAY_DELAY_MS,
 	MS_PER_SECOND,
 	OPEN_PANEL_COMMAND,
-	EXPORT_HISTORY_COMMAND,
 	REFRESH_COMMAND,
 	RESET_SESSION_COMMAND,
 	SETTINGS_COMMAND,
@@ -157,6 +157,7 @@ export function activate(context: vscode.ExtensionContext) {
 		vscode.commands.registerCommand(REFRESH_COMMAND, () => refresh(true)),
 		vscode.commands.registerCommand(SETTINGS_COMMAND, () => vscode.commands.executeCommand('workbench.action.openSettings', CONFIG_NAMESPACE)),
 		vscode.commands.registerCommand(OPEN_PANEL_COMMAND, () => focusUsagePanel()),
+		vscode.commands.registerCommand('ag-usage.openModelsSettings', () => vscode.commands.executeCommand('workbench.action.openAntigravitySettingsWithId', undefined, 'Models')),
 		vscode.commands.registerCommand(EXPORT_HISTORY_COMMAND, async () => {
 			if (!state) return;
 			const history = state.quotaHistory.getRawEntries();
